@@ -1,3 +1,9 @@
 .user-card__body {
     color: white !important;
 }
+
+/* Red border for my messages */
+li:has(span[title="Alex"]) .user-card {
+    border: 2px solid red;
+    border-radius: 8px;
+}
