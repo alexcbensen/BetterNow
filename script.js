@@ -10,11 +10,15 @@ const gradients = {
     1600: "linear-gradient(115.62deg, rgb(255, 200, 100) 17.43%, rgb(255, 100, 150) 84.33%)",
     1800: "linear-gradient(115.62deg, rgb(255, 50, 150) 17.43%, rgb(200, 50, 255) 84.33%)",
     2000: "linear-gradient(115.62deg, rgb(255, 100, 150) 17.43%, rgb(200, 50, 200) 84.33%)",
-    2500: "linear-gradient(115.62deg, rgb(255, 0, 81) 17.43%, rgb(128, 0, 148) 84.33%)"
+    2500: "linear-gradient(115.62deg, rgb(255, 0, 81) 17.43%, rgb(128, 0, 148) 84.33%)",
+    6767: "linear-gradient(115.62deg, rgb(255, 215, 0) 17.43%, rgb(255, 180, 0) 84.33%)"
 };
 
-const myGradient = gradients[2500];
+const myGradient = gradients[6767];
 const friendGradient = gradients[1000];
+
+const myTextColor = "#FFD700"; // Gold
+const friendTextColor = "#FFFFFF"; // White
 
 function applyBorders() {
     myUsernames.forEach(username => {
@@ -42,6 +46,11 @@ function applyBorders() {
                     levelBadge.style.padding = '.125rem .5rem';
                     levelBadge.style.color = '#fff';
                 }
+
+                const usernameSpan = li.querySelector(`span[title="${username}"]`);
+                if (usernameSpan) {
+                    usernameSpan.style.color = myTextColor;
+                }
             }
         });
     });
@@ -62,6 +71,11 @@ function applyBorders() {
                 const comment = li.querySelector('.comment');
                 if (comment) {
                     comment.className = 'comment ng-star-inserted';
+                }
+
+                const usernameSpan = li.querySelector(`span[title="${username}"]`);
+                if (usernameSpan) {
+                    usernameSpan.style.color = friendTextColor;
                 }
             }
         });
