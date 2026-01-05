@@ -1,3 +1,56 @@
 app-chat .user-card__body {
     color: white !important;
 }
+
+/* Grid view styles */
+.grid-view-enabled .video-player {
+    height: auto !important;
+    min-height: 600px !important;
+}
+
+.grid-view-enabled .fullscreen-wrapper {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 600px !important;
+}
+
+.grid-view-enabled .fullscreen-wrapper > .video {
+    position: relative !important;
+    flex: 1 1 calc(50% - 3px) !important;
+    min-width: calc(50% - 3px) !important;
+    height: auto !important;
+    aspect-ratio: 16/9 !important;
+    left: unset !important;
+    top: unset !important;
+}
+
+.grid-view-enabled .fullscreen-wrapper > .video:only-child {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+}
+
+.grid-view-enabled .fullscreen-wrapper > .video video,
+.grid-view-enabled .fullscreen-wrapper > .video .video-wrapper,
+.grid-view-enabled .fullscreen-wrapper > .video app-video,
+.grid-view-enabled .fullscreen-wrapper > .video .main-video-wrapper {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+}
+
+/* Block clicks on video area but allow toolbar */
+.grid-view-enabled .fullscreen-wrapper > .video > .main-video-wrapper {
+    pointer-events: none !important;
+}
+
+.grid-view-enabled .fullscreen-wrapper > .video app-toolbar-overlay,
+.grid-view-enabled .fullscreen-wrapper > .video app-toolbar-overlay *,
+.grid-view-enabled .fullscreen-wrapper > .video .thumb-wrapper,
+.grid-view-enabled .fullscreen-wrapper > .video .thumb-wrapper *,
+.grid-view-enabled .fullscreen-wrapper > .video .username,
+.grid-view-enabled .fullscreen-wrapper > .video .username * {
+    pointer-events: auto !important;
+}

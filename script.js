@@ -21,6 +21,8 @@ const friendGradient = gradients[1000];
 const myTextColor = "#FFD700"; // Gold
 const friendTextColor = "#FFFFFF"; // White
 
+let gridViewEnabled = false;
+
 function applyBorders() {
     myUsernames.forEach(username => {
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
@@ -94,7 +96,52 @@ function hideBroadcasters() {
     });
 }
 
+function createGridToggle() {
+    if (document.getElementById('grid-toggle-btn')) return;
+
+    const buttonWrapper = document.querySelector('.top-button-wrapper');
+    if (!buttonWrapper) return;
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.id = 'grid-toggle-btn';
+    toggleBtn.innerHTML = '⊞';
+    toggleBtn.title = 'Toggle Grid View';
+    toggleBtn.style.cssText = `
+        background: ${gridViewEnabled ? '#22c55e' : 'transparent'};
+        border: 1px solid #555;
+        color: white;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+    `;
+
+    toggleBtn.onclick = () => {
+        gridViewEnabled = !gridViewEnabled;
+        toggleBtn.style.background = gridViewEnabled ? '#22c55e' : 'transparent';
+        applyGridView();
+    };
+
+    buttonWrapper.insertBefore(toggleBtn, buttonWrapper.firstChild);
+}
+
+function applyGridView() {
+    if (gridViewEnabled) {
+        document.body.classList.add('grid-view-enabled');
+    } else {
+        document.body.classList.remove('grid-view-enabled');
+    }
+}
+
 applyBorders();
 hideBroadcasters();
+
+setInterval(createGridToggle, 1000);
+setInterval(applyGridView, 1000);
 setInterval(applyBorders, 1000);
 setInterval(hideBroadcasters, 1000);
