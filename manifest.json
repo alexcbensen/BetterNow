@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Alex's YouNow Extension",
-  "version": "1.5",
+  "version": "1.7",
   "icons": {
     "16": "favicon-1.png",
     "48": "favicon-2.png",
@@ -10,9 +10,15 @@
   "description": "A mix of features to improve upon the YouNow experience",
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["https://www.younow.com/*", "https://younow.com/*"],
       "css": ["styles.css"],
       "js": ["script.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["golden-border-2.svg"],
+      "matches": ["https://www.younow.com/*", "https://younow.com/*"]
     }
   ]
 }

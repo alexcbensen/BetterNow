@@ -12,10 +12,11 @@ const gradients = {
     1800: "linear-gradient(115.62deg, rgb(255, 50, 150) 17.43%, rgb(200, 50, 255) 84.33%)",
     2000: "linear-gradient(115.62deg, rgb(255, 100, 150) 17.43%, rgb(200, 50, 200) 84.33%)",
     2500: "linear-gradient(115.62deg, rgb(255, 0, 81) 17.43%, rgb(128, 0, 148) 84.33%)",
-    6767: "linear-gradient(115.62deg, rgb(255, 215, 0) 17.43%, rgb(255, 180, 0) 84.33%)"
+    6767: "linear-gradient(115.62deg, rgb(255, 215, 0) 17.43%, rgb(255, 180, 0) 84.33%)",
+    6969: "linear-gradient(115.62deg, rgb(255, 184, 57) 17.43%, rgb(255, 184, 57) 84.33%)"
 };
 
-const myGradient = gradients[6767];
+const myGradient = gradients[6969];
 const friendGradient = gradients[1000];
 const myTextColor = "#FFD700";
 const friendTextColor = "#FFFFFF";
@@ -36,7 +37,7 @@ function applyBorders() {
             if (li && li.closest('app-chat-list')) {
                 const card = li.querySelector('.user-card');
                 if (card) {
-                    card.style.border = '2px solid transparent';
+                    card.style.border = '1px solid transparent';
                     card.style.borderRadius = '8px';
                     card.style.backgroundImage = `linear-gradient(#212121, #212121), ${myGradient}`;
                     card.style.backgroundOrigin = 'border-box';
@@ -60,6 +61,29 @@ function applyBorders() {
                 if (usernameSpan) {
                     usernameSpan.style.setProperty('color', myTextColor, 'important');
                 }
+
+                const avatarThumb = li.querySelector('app-user-thumb .user-thumb');
+                if (avatarThumb) {
+                    // Add the border image around avatar
+                    const existingBorder = avatarThumb.querySelector('.custom-avatar-border');
+                    if (!existingBorder) {
+                        const borderImg = document.createElement('img');
+                        borderImg.src = chrome.runtime.getURL('golden-border-2.svg');
+                        borderImg.className = 'custom-avatar-border';
+                        borderImg.style.cssText = `
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            width: calc(100% + 6px);
+                            height: calc(100% + 6px);
+                            pointer-events: none;
+                            z-index: 1;
+                        `;
+                        avatarThumb.style.position = 'relative';
+                        avatarThumb.appendChild(borderImg);
+                    }
+                }
             }
         });
     });
@@ -70,7 +94,7 @@ function applyBorders() {
             if (li && li.closest('app-chat-list')) {
                 const card = li.querySelector('.user-card');
                 if (card) {
-                    card.style.border = '2px solid transparent';
+                    card.style.border = '1px solid transparent';
                     card.style.borderRadius = '8px';
                     card.style.backgroundImage = `linear-gradient(#212121, #212121), ${friendGradient}`;
                     card.style.backgroundOrigin = 'border-box';
