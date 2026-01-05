@@ -115,15 +115,17 @@ function createGridToggle() {
         background: ${gridViewEnabled ? '#22c55e' : 'transparent'};
         border: 1px solid #555;
         color: white;
-        width: 44px;
-        height: 44px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
         cursor: pointer;
-        font-size: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        font-size: 24px;
+        display: inline-block;
+        text-align: center;
+        line-height: 34px;
+        padding: 0;
         margin-right: 10px;
+        font-family: proxima-nova, sans-serif;
     `;
 
     toggleBtn.onclick = () => {
