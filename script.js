@@ -1,5 +1,6 @@
 const myUsernames = ["Alex"];
 const friendUsernames = ["Menacing", "JusWithoutTheTin"];
+const hiddenBroadcasters = ["mcfroger3", "unhingedfaerie"];
 
 const gradients = {
     300: "linear-gradient(115.62deg, rgb(0, 200, 170) 17.43%, rgb(0, 150, 200) 84.33%)",
@@ -82,5 +83,18 @@ function applyBorders() {
     });
 }
 
+function hideBroadcasters() {
+    hiddenBroadcasters.forEach(username => {
+        document.querySelectorAll(`a[href="/${username}"]`).forEach(el => {
+            const card = el.closest('li');
+            if (card) {
+                card.style.display = 'none';
+            }
+        });
+    });
+}
+
 applyBorders();
+hideBroadcasters();
 setInterval(applyBorders, 1000);
+setInterval(hideBroadcasters, 1000);
