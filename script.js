@@ -1,5 +1,5 @@
 const myUsernames = ["Alex"];
-const friendUsernames = ["Menacing", "JusWithoutTheTin"];
+const friendUsernames = ["Menacing", "JusWithoutTheTin", "ThatDudeJon", "TeressaMarie"];
 const hiddenBroadcasters = ["mcfroger3", "unhingedfaerie"];
 
 const gradients = {
@@ -25,7 +25,7 @@ function applyBorders() {
     myUsernames.forEach(username => {
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
             const li = span.closest('li');
-            if (li) {
+            if (li && li.closest('app-chat-list')) {
                 const card = li.querySelector('.user-card');
                 if (card) {
                     card.style.border = '2px solid transparent';
@@ -50,7 +50,7 @@ function applyBorders() {
 
                 const usernameSpan = li.querySelector(`span[title="${username}"]`);
                 if (usernameSpan) {
-                    usernameSpan.style.color = myTextColor;
+                    usernameSpan.style.setProperty('color', myTextColor, 'important');
                 }
             }
         });
@@ -59,7 +59,7 @@ function applyBorders() {
     friendUsernames.forEach(username => {
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
             const li = span.closest('li');
-            if (li) {
+            if (li && li.closest('app-chat-list')) {
                 const card = li.querySelector('.user-card');
                 if (card) {
                     card.style.border = '2px solid transparent';
@@ -76,7 +76,7 @@ function applyBorders() {
 
                 const usernameSpan = li.querySelector(`span[title="${username}"]`);
                 if (usernameSpan) {
-                    usernameSpan.style.color = friendTextColor;
+                    usernameSpan.style.setProperty('color', friendTextColor, 'important');
                 }
             }
         });
