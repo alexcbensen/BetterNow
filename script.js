@@ -24,7 +24,7 @@ let gridViewEnabled = false;
 
 // Debounce for carousel skipping - prevent rapid clicks
 let lastSkipTime = 0;
-const SKIP_COOLDOWN = 750; // 0.5 seconds between skips
+const SKIP_COOLDOWN = 1000; // 1 second between skips
 
 // Track navigation direction: 'next' or 'prev'
 let lastDirection = 'next';
