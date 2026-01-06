@@ -93,3 +93,21 @@ app-chat .user-card__body {
 .grid-view-enabled app-channel .fullscreen-wrapper > .video video {
     object-fit: cover !important;
 }
+
+/* Force audio avatar to stay small size in grid view */
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .audio-animation-wrapper {
+    width: 30% !important;
+    height: auto !important;
+    aspect-ratio: 1/1 !important;
+}
+
+/* Make hover username positioning match clicked state */
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .toolbar--overlay-container:not(.is-main) .username {
+    font-size: 16px !important;
+    position: absolute !important;
+    bottom: 0.9rem !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: auto !important;
+    padding: 0 !important;
+}
