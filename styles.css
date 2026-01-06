@@ -11,7 +11,7 @@ app-chat .user-card__body {
 .grid-view-enabled app-channel .fullscreen-wrapper {
     display: flex !important;
     flex-wrap: wrap !important;
-    gap: 5px !important;
+    gap: 6px !important;
     width: 100% !important;
     height: auto !important;
     min-height: 600px !important;
@@ -20,7 +20,7 @@ app-chat .user-card__body {
 .grid-view-enabled app-channel .fullscreen-wrapper > .video {
     position: relative !important;
     flex: 1 1 calc(50% - 3px) !important;
-    min-width: calc(50% - 3px) !important;
+    max-width: calc(50% - 3px) !important;
     height: auto !important;
     aspect-ratio: 16/9 !important;
     left: unset !important;
@@ -88,4 +88,8 @@ app-chat .user-card__body {
 .video-player .video {
     border-radius: 12px;
     overflow: hidden;
+}
+
+.grid-view-enabled app-channel .fullscreen-wrapper > .video video {
+    object-fit: cover !important;
 }
