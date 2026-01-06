@@ -38,7 +38,6 @@ app-chat .user-card__body {
 .grid-view-enabled app-channel .fullscreen-wrapper > .video .main-video-wrapper {
     width: 100% !important;
     height: 100% !important;
-    object-fit: contain !important;
 }
 
 /* Block clicks on video area but allow toolbar */
@@ -53,4 +52,19 @@ app-chat .user-card__body {
 .grid-view-enabled app-channel .fullscreen-wrapper > .video .username,
 .grid-view-enabled app-channel .fullscreen-wrapper > .video .username * {
     pointer-events: auto !important;
+}
+
+/* Rounded corners for all videos */
+.video-player .video {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.video-player .video video {
+    object-fit: cover !important;
+}
+
+/* Grid view video fit */
+.grid-view-enabled app-channel .fullscreen-wrapper > .video video {
+    object-fit: cover !important;
 }
