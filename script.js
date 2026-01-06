@@ -96,7 +96,7 @@ function applyBorders() {
                 if (card) {
                     card.style.border = '1px solid transparent';
                     card.style.borderRadius = '8px';
-                    card.style.backgroundImage = `linear-gradient(#212121, #212121), ${friendGradient}`;
+                    card.style.backgroundImage = `linear-gradient(#212121, #212211), ${friendGradient}`;
                     card.style.backgroundOrigin = 'border-box';
                     card.style.backgroundClip = 'padding-box, border-box';
                 }
@@ -257,13 +257,31 @@ const observer = new MutationObserver(() => {
     hideCarouselBroadcasters();
 });
 
+// Watch for new chat messages to apply borders instantly
+let chatObserver = null;
+
+function observeChat() {
+    const chatContainer = document.querySelector('app-chat-list');
+    if (chatContainer && !chatContainer.hasAttribute('data-observing')) {
+        chatObserver = new MutationObserver(() => {
+            applyBorders();
+        });
+        chatObserver.observe(chatContainer, { childList: true, subtree: true });
+        chatContainer.setAttribute('data-observing', 'true');
+    }
+}
+
 applyBorders();
 hideBroadcasters();
 hideCarouselBroadcasters();
 
+// Apply borders again after a delay to catch messages loaded after initial render
+setTimeout(applyBorders, 500);
+setTimeout(applyBorders, 1000);
+
 setInterval(createGridToggle, 1000);
 setInterval(applyGridView, 1000);
-setInterval(applyBorders, 1000);
+setInterval(observeChat, 1000);
 setInterval(fixVideoFit, 1000);
 setInterval(hideCarouselBroadcasters, 200);
 
