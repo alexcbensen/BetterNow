@@ -54,10 +54,6 @@ app-chat .user-card__body {
 }
 
 /* Keep screenshare properly sized in grid view */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video {
-    position: relative !important;
-}
-
 .grid-view-enabled app-channel .fullscreen-wrapper > .video > .main-video-wrapper {
     position: relative !important;
     width: 100% !important;
