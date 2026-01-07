@@ -89,7 +89,6 @@ async function handleAdminClick() {
             openAdminPanel();
         } catch (e) {
             // User cancelled sign-in
-            console.log('Sign-in cancelled');
         }
     }
 }
@@ -102,51 +101,59 @@ function updateAdminIcon() {
 }
 
 function openAdminPanel() {
-    console.log('openAdminPanel called');
-
     const existing = document.getElementById('admin-panel-overlay');
     if (existing) existing.remove();
 
+    // Disable page scroll
+    document.body.style.overflow = 'hidden';
+
     const overlay = createOverlay('admin-panel-overlay', templates.adminPanel);
     document.body.appendChild(overlay);
-
-    console.log('Overlay created');
 
     // Populate lists
     renderFriendUsernames();
     renderHiddenBroadcasters();
 
-    console.log('Lists rendered');
-
     // Close button
     const closeBtn = document.getElementById('admin-panel-close');
-    console.log('Close btn:', closeBtn);
-    closeBtn.addEventListener('click', () => overlay.remove());
+    closeBtn.addEventListener('click', () => {
+        document.body.style.overflow = '';
+        overlay.remove();
+    });
 
     // Sign out button
     const lockBtn = document.getElementById('admin-panel-lock');
-    console.log('Lock btn:', lockBtn);
     lockBtn.addEventListener('click', () => {
         firebaseIdToken = null;
         sessionStorage.removeItem('firebaseIdToken');
         updateAdminIcon();
+        document.body.style.overflow = '';
         overlay.remove();
     });
 
     // Add friend username
     const addFriendBtn = document.getElementById('add-friend-btn');
     const friendInput = document.getElementById('friend-username-input');
-    console.log('Add friend btn:', addFriendBtn);
-    console.log('Friend input:', friendInput);
 
-    addFriendBtn.addEventListener('click', () => {
-        console.log('Add friend clicked');
+    addFriendBtn.addEventListener('click', async () => {
         const username = friendInput.value.trim();
-        if (username && !friendUsernames.includes(username)) {
-            friendUsernames.push(username);
-            renderFriendUsernames();
-            friendInput.value = '';
+        const statusEl = document.getElementById('admin-save-status');
+
+        if (!username) return;
+
+        const isDuplicate = friendUsernames.some(u => u.toLowerCase() === username.toLowerCase());
+        if (isDuplicate) {
+            statusEl.style.display = 'block';
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = `"${username}" is already in friends list`;
+            setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+            return;
         }
+
+        friendUsernames.push(username);
+        renderFriendUsernames();
+        friendInput.value = '';
+        await saveSettingsToFirebase();
     });
     friendInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addFriendBtn.click();
@@ -155,31 +162,37 @@ function openAdminPanel() {
     // Add hidden broadcaster
     const addHiddenBtn = document.getElementById('add-hidden-btn');
     const hiddenInput = document.getElementById('hidden-broadcaster-input');
-    console.log('Add hidden btn:', addHiddenBtn);
 
-    addHiddenBtn.addEventListener('click', () => {
-        console.log('Add hidden clicked');
+    addHiddenBtn.addEventListener('click', async () => {
         const username = hiddenInput.value.trim();
-        if (username && !hiddenBroadcasters.includes(username)) {
-            hiddenBroadcasters.push(username);
-            renderHiddenBroadcasters();
-            hiddenInput.value = '';
+        const statusEl = document.getElementById('admin-save-status');
+
+        if (!username) return;
+
+        const isDuplicate = hiddenBroadcasters.some(u => u.toLowerCase() === username.toLowerCase());
+        if (isDuplicate) {
+            statusEl.style.display = 'block';
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = `"${username}" is already in hidden list`;
+            setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+            return;
         }
+
+        hiddenBroadcasters.push(username);
+        renderHiddenBroadcasters();
+        hiddenInput.value = '';
+        await saveSettingsToFirebase();
     });
     hiddenInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') addHiddenBtn.click();
     });
 
-    // Save button
-    const saveBtn = document.getElementById('admin-save-btn');
-    console.log('Save btn:', saveBtn);
-    saveBtn.addEventListener('click', saveSettingsToFirebase);
-
-    console.log('All event listeners attached');
-
     // Click outside to close
     overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) overlay.remove();
+        if (e.target === overlay) {
+            document.body.style.overflow = '';
+            overlay.remove();
+        }
     });
 }
 
@@ -212,10 +225,11 @@ function renderFriendUsernames() {
 
     // Add click handlers for remove buttons
     container.querySelectorAll('[data-remove-friend]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const index = parseInt(btn.getAttribute('data-remove-friend'));
             friendUsernames.splice(index, 1);
             renderFriendUsernames();
+            await saveSettingsToFirebase();
         });
     });
 }
@@ -249,10 +263,11 @@ function renderHiddenBroadcasters() {
 
     // Add click handlers for remove buttons
     container.querySelectorAll('[data-remove-hidden]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const index = parseInt(btn.getAttribute('data-remove-hidden'));
             hiddenBroadcasters.splice(index, 1);
             renderHiddenBroadcasters();
+            await saveSettingsToFirebase();
         });
     });
 }

@@ -238,20 +238,13 @@ function showAuthPrompt() {
 
 async function saveSettingsToFirebase() {
     const statusEl = document.getElementById('admin-save-status');
-    const saveBtn = document.getElementById('admin-save-btn');
 
     try {
-        statusEl.style.display = 'block';
-        statusEl.style.color = '#888';
-        statusEl.textContent = 'Authenticating...';
-        saveBtn.disabled = true;
-
-        // Get auth token if we don't have one
-        if (!firebaseIdToken) {
-            firebaseIdToken = await showAuthPrompt();
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.style.color = '#888';
+            statusEl.textContent = 'Saving...';
         }
-
-        statusEl.textContent = 'Saving...';
 
         const response = await fetch(
             `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUsernames&updateMask.fieldPaths=hiddenBroadcasters`,
@@ -280,27 +273,28 @@ async function saveSettingsToFirebase() {
 
         if (!response.ok) {
             const error = await response.json();
-            // If token expired, clear it and retry once
             if (response.status === 401 || response.status === 403) {
                 firebaseIdToken = null;
                 sessionStorage.removeItem('firebaseIdToken');
-                throw new Error('Auth expired. Please try again.');
+                throw new Error('Auth expired. Please sign in again.');
             }
             throw new Error(error.error?.message || 'Failed to save');
         }
 
-        statusEl.style.color = '#22c55e';
-        statusEl.textContent = 'Saved successfully!';
+        if (statusEl) {
+            statusEl.style.color = '#22c55e';
+            statusEl.textContent = 'Saved!';
 
-        setTimeout(() => {
-            statusEl.style.display = 'none';
-        }, 2000);
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 1500);
+        }
 
     } catch (error) {
         console.error('Error saving to Firebase:', error);
-        statusEl.style.color = '#ef4444';
-        statusEl.textContent = 'Error: ' + error.message;
-    } finally {
-        saveBtn.disabled = false;
+        if (statusEl) {
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = 'Error: ' + error.message;
+        }
     }
 }

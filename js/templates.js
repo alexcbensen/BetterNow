@@ -78,20 +78,8 @@ const templates = {
                     </div>
                 </div>
                 
-                <!-- Save Button -->
-                <div style="margin-bottom: 16px;">
-                    <button id="admin-save-btn" style="
-                        background: #3b82f6;
-                        border: none;
-                        border-radius: 8px;
-                        padding: 12px 24px;
-                        color: white;
-                        font-size: 16px;
-                        cursor: pointer;
-                        width: 100%;
-                    ">Save Changes</button>
-                    <p id="admin-save-status" style="color: #888; margin: 10px 0 0 0; text-align: center; display: none;"></p>
-                </div>
+                <!-- Status Message -->
+                <p id="admin-save-status" style="color: #888; margin: 10px 0 0 0; text-align: center; display: none;"></p>
             </div>
             
             <div style="padding-top: 16px; border-top: 1px solid #333;">
@@ -106,7 +94,7 @@ const templates = {
                     display: inline-flex;
                     align-items: center;
                     gap: 6px;
-                "><i class="bi bi-box-arrow-right"></i> Sign Out</button>
+                "><i class="bi bi-box-arrow-right"></i> Lock Panel</button>
             </div>
         </div>
     `
