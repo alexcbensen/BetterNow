@@ -58,6 +58,7 @@ function setStoredPIN(pinHash) {
 }
 
 let verifiedAdmin = null; // Cache the admin verification
+let adminButtonPending = false; // Prevent duplicate button creation
 
 async function verifyAdminUser() {
     if (verifiedAdmin !== null) return verifiedAdmin;
@@ -78,12 +79,25 @@ async function verifyAdminUser() {
 }
 
 async function createAdminPanelEntry() {
+    if (document.getElementById('admin-panel-btn') || adminButtonPending) return;
+
     const currenciesWrapper = document.querySelector('app-profile-dropdown .currencies-infos-wrapper > div');
-    if (!currenciesWrapper || document.getElementById('admin-panel-btn')) return;
+    if (!currenciesWrapper) return;
+
+    adminButtonPending = true;
 
     // Verify user is admin via API
     const isAdmin = await verifyAdminUser();
-    if (!isAdmin) return;
+    if (!isAdmin) {
+        adminButtonPending = false;
+        return;
+    }
+
+    // Double-check button doesn't exist after async call
+    if (document.getElementById('admin-panel-btn')) {
+        adminButtonPending = false;
+        return;
+    }
 
     const isUnlocked = isAdminUnlocked();
 
@@ -116,6 +130,8 @@ async function createAdminPanelEntry() {
     if (barsBtn) {
         barsBtn.parentNode.insertBefore(adminBtn, barsBtn.nextSibling);
     }
+
+    adminButtonPending = false;
 }
 
 async function handleAdminClick() {
