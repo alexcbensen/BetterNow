@@ -34,17 +34,24 @@ function unlockAdmin() {
     sessionStorage.setItem('adminUnlocked', 'true');
 }
 
+async function hashPIN(pin) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(pin);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function getStoredPIN() {
     return new Promise((resolve) => {
-        chrome.storage.sync.get(['adminPIN'], (result) => {
-            resolve(result.adminPIN || null);
+        chrome.storage.sync.get(['adminPINHash'], (result) => {
+            resolve(result.adminPINHash || null);
         });
     });
 }
 
-function setStoredPIN(pin) {
+function setStoredPIN(pinHash) {
     return new Promise((resolve) => {
-        chrome.storage.sync.set({ adminPIN: pin }, () => {
+        chrome.storage.sync.set({ adminPINHash: pinHash }, () => {
             resolve();
         });
     });
@@ -163,7 +170,8 @@ function showCreatePinPrompt() {
             return;
         }
 
-        await setStoredPIN(pin);
+        const pinHash = await hashPIN(pin);
+        await setStoredPIN(pinHash);
         unlockAdmin();
         overlay.remove();
         updateAdminIcon();
@@ -195,8 +203,9 @@ function showPinPrompt() {
     input.focus();
 
     const tryUnlock = async () => {
-        const storedPIN = await getStoredPIN();
-        if (input.value === storedPIN) {
+        const storedHash = await getStoredPIN();
+        const inputHash = await hashPIN(input.value);
+        if (inputHash === storedHash) {
             unlockAdmin();
             overlay.remove();
             updateAdminIcon();
