@@ -278,9 +278,8 @@ hideCarouselBroadcasters();
 // Apply borders again after a delay to catch messages loaded after initial render
 setTimeout(applyBorders, 500);
 setTimeout(applyBorders, 1000);
-
-setInterval(createGridToggle, 1000);
 setInterval(applyGridView, 1000);
+setInterval(createGridToggle, 1000);
 setInterval(observeChat, 1000);
 setInterval(fixVideoFit, 1000);
 setInterval(hideCarouselBroadcasters, 200);
