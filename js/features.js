@@ -7,62 +7,62 @@ let lastDirection = 'next';
 // ============ Chat Styling ============
 
 function applyBorders() {
-    myUsernames.forEach(username => {
-        document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
-            const li = span.closest('li');
-            if (li && li.closest('app-chat-list')) {
-                const card = li.querySelector('.user-card');
-                if (card) {
-                    card.style.border = '1px solid transparent';
-                    card.style.borderRadius = '8px';
-                    card.style.backgroundImage = `linear-gradient(#212121, #212121), ${myGradient}`;
-                    card.style.backgroundOrigin = 'border-box';
-                    card.style.backgroundClip = 'padding-box, border-box';
-                }
+    // Apply borders for my username
+    document.querySelectorAll(`span[title="${myUsername}"]`).forEach(span => {
+        const li = span.closest('li');
+        if (li && li.closest('app-chat-list')) {
+            const card = li.querySelector('.user-card');
+            if (card) {
+                card.style.border = '1px solid transparent';
+                card.style.borderRadius = '8px';
+                card.style.backgroundImage = `linear-gradient(#212121, #212121), ${myGradient}`;
+                card.style.backgroundOrigin = 'border-box';
+                card.style.backgroundClip = 'padding-box, border-box';
+            }
 
-                const comment = li.querySelector('.comment');
-                if (comment) {
-                    comment.className = 'comment ng-star-inserted';
-                }
+            const comment = li.querySelector('.comment');
+            if (comment) {
+                comment.className = 'comment ng-star-inserted';
+            }
 
-                const levelBadge = li.querySelector('app-user-level .user-level');
-                if (levelBadge) {
-                    levelBadge.style.background = myGradient;
-                    levelBadge.style.borderRadius = '9px';
-                    levelBadge.style.padding = '.125rem .5rem';
-                    levelBadge.style.color = '#fff';
-                }
+            const levelBadge = li.querySelector('app-user-level .user-level');
+            if (levelBadge) {
+                levelBadge.style.background = myGradient;
+                levelBadge.style.borderRadius = '9px';
+                levelBadge.style.padding = '.125rem .5rem';
+                levelBadge.style.color = '#fff';
+            }
 
-                const usernameSpan = li.querySelector(`span[title="${username}"]`);
-                if (usernameSpan) {
-                    usernameSpan.style.setProperty('color', myTextColor, 'important');
-                }
+            const usernameSpan = li.querySelector(`span[title="${myUsername}"]`);
+            if (usernameSpan) {
+                usernameSpan.style.setProperty('color', myTextColor, 'important');
+            }
 
-                const avatarThumb = li.querySelector('app-user-thumb .user-thumb');
-                if (avatarThumb) {
-                    const existingBorder = avatarThumb.querySelector('.custom-avatar-border');
-                    if (!existingBorder) {
-                        const borderImg = document.createElement('img');
-                        borderImg.src = chrome.runtime.getURL('assets/golden-border-2.svg');
-                        borderImg.className = 'custom-avatar-border';
-                        borderImg.style.cssText = `
-                            position: absolute;
-                            top: 50%;
-                            left: 50%;
-                            transform: translate(-50%, -50%);
-                            width: calc(100% + 6px);
-                            height: calc(100% + 6px);
-                            pointer-events: none;
-                            z-index: 1;
-                        `;
-                        avatarThumb.style.position = 'relative';
-                        avatarThumb.appendChild(borderImg);
-                    }
+            const avatarThumb = li.querySelector('app-user-thumb .user-thumb');
+            if (avatarThumb) {
+                const existingBorder = avatarThumb.querySelector('.custom-avatar-border');
+                if (!existingBorder) {
+                    const borderImg = document.createElement('img');
+                    borderImg.src = chrome.runtime.getURL('assets/golden-border-2.svg');
+                    borderImg.className = 'custom-avatar-border';
+                    borderImg.style.cssText = `
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: calc(100% + 6px);
+                        height: calc(100% + 6px);
+                        pointer-events: none;
+                        z-index: 1;
+                    `;
+                    avatarThumb.style.position = 'relative';
+                    avatarThumb.appendChild(borderImg);
                 }
             }
-        });
+        }
     });
 
+    // Apply borders for friend usernames
     friendUsernames.forEach(username => {
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
             const li = span.closest('li');
