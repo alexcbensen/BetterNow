@@ -3,30 +3,6 @@
 let verifiedAdmin = null;
 let adminButtonPending = false;
 
-function isAdminUnlocked() {
-    return sessionStorage.getItem('adminUnlocked') === 'true';
-}
-
-function unlockAdmin() {
-    sessionStorage.setItem('adminUnlocked', 'true');
-}
-
-function getStoredPIN() {
-    return new Promise((resolve) => {
-        chrome.storage.sync.get(['adminPINHash'], (result) => {
-            resolve(result.adminPINHash || null);
-        });
-    });
-}
-
-function setStoredPIN(pinHash) {
-    return new Promise((resolve) => {
-        chrome.storage.sync.set({ adminPINHash: pinHash }, () => {
-            resolve();
-        });
-    });
-}
-
 async function verifyAdminUser() {
     if (verifiedAdmin !== null) return verifiedAdmin;
 
@@ -64,7 +40,7 @@ async function createAdminPanelEntry() {
         return;
     }
 
-    const isUnlocked = isAdminUnlocked();
+    const isSignedIn = !!firebaseIdToken;
 
     const adminBtn = document.createElement('button');
     adminBtn.id = 'admin-panel-btn';
@@ -85,7 +61,7 @@ async function createAdminPanelEntry() {
         font-family: proxima-nova, sans-serif;
         width: auto;
     `;
-    adminBtn.innerHTML = `<i class="bi ${isUnlocked ? 'bi-unlock-fill' : 'bi-lock-fill'}" id="admin-lock-icon"></i><span>Admin Panel</span>`;
+    adminBtn.innerHTML = `<i class="bi ${isSignedIn ? 'bi-unlock-fill' : 'bi-lock-fill'}" id="admin-lock-icon"></i><span>Admin Panel</span>`;
     adminBtn.title = 'Admin Panel';
 
     adminBtn.addEventListener('click', handleAdminClick);
@@ -104,112 +80,24 @@ async function handleAdminClick() {
 
     document.body.click();
 
-    if (isAdminUnlocked()) {
+    // Check if already signed in
+    if (firebaseIdToken) {
         openAdminPanel();
     } else {
-        const storedPIN = await getStoredPIN();
-        if (storedPIN) {
-            showPinPrompt();
-        } else {
-            showCreatePinPrompt();
+        try {
+            firebaseIdToken = await showAuthPrompt();
+            openAdminPanel();
+        } catch (e) {
+            // User cancelled sign-in
+            console.log('Sign-in cancelled');
         }
     }
-}
-
-function showCreatePinPrompt() {
-    const existing = document.getElementById('admin-pin-overlay');
-    if (existing) existing.remove();
-
-    const overlay = createOverlay('admin-pin-overlay', templates.createPinPrompt);
-    document.body.appendChild(overlay);
-
-    const pinInput = document.getElementById('admin-pin-input');
-    const confirmInput = document.getElementById('admin-pin-confirm');
-    const submitBtn = document.getElementById('admin-pin-submit');
-    const cancelBtn = document.getElementById('admin-pin-cancel');
-    const errorMsg = document.getElementById('admin-pin-error');
-
-    pinInput.focus();
-
-    const tryCreate = async () => {
-        const pin = pinInput.value;
-        const confirm = confirmInput.value;
-
-        if (pin.length < 4) {
-            errorMsg.textContent = 'PIN must be at least 4 characters';
-            errorMsg.style.display = 'block';
-            return;
-        }
-
-        if (pin !== confirm) {
-            errorMsg.textContent = 'PINs do not match';
-            errorMsg.style.display = 'block';
-            confirmInput.value = '';
-            confirmInput.focus();
-            return;
-        }
-
-        const pinHash = await hashPIN(pin);
-        await setStoredPIN(pinHash);
-        unlockAdmin();
-        overlay.remove();
-        updateAdminIcon();
-        openAdminPanel();
-    };
-
-    submitBtn.addEventListener('click', tryCreate);
-    confirmInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') tryCreate();
-    });
-    cancelBtn.addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) overlay.remove();
-    });
-}
-
-function showPinPrompt() {
-    const existing = document.getElementById('admin-pin-overlay');
-    if (existing) existing.remove();
-
-    const overlay = createOverlay('admin-pin-overlay', templates.pinPrompt);
-    document.body.appendChild(overlay);
-
-    const input = document.getElementById('admin-pin-input');
-    const submitBtn = document.getElementById('admin-pin-submit');
-    const cancelBtn = document.getElementById('admin-pin-cancel');
-    const errorMsg = document.getElementById('admin-pin-error');
-
-    input.focus();
-
-    const tryUnlock = async () => {
-        const storedHash = await getStoredPIN();
-        const inputHash = await hashPIN(input.value);
-        if (inputHash === storedHash) {
-            unlockAdmin();
-            overlay.remove();
-            updateAdminIcon();
-            openAdminPanel();
-        } else {
-            errorMsg.style.display = 'block';
-            input.value = '';
-            input.focus();
-        }
-    };
-
-    submitBtn.addEventListener('click', tryUnlock);
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') tryUnlock();
-    });
-    cancelBtn.addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) overlay.remove();
-    });
 }
 
 function updateAdminIcon() {
     const icon = document.getElementById('admin-lock-icon');
     if (icon) {
-        icon.className = isAdminUnlocked() ? 'bi bi-unlock-fill' : 'bi bi-lock-fill';
+        icon.className = firebaseIdToken ? 'bi bi-unlock-fill' : 'bi bi-lock-fill';
     }
 }
 
@@ -235,11 +123,12 @@ function openAdminPanel() {
     console.log('Close btn:', closeBtn);
     closeBtn.addEventListener('click', () => overlay.remove());
 
-    // Lock button
+    // Sign out button
     const lockBtn = document.getElementById('admin-panel-lock');
     console.log('Lock btn:', lockBtn);
     lockBtn.addEventListener('click', () => {
-        sessionStorage.removeItem('adminUnlocked');
+        firebaseIdToken = null;
+        sessionStorage.removeItem('firebaseIdToken');
         updateAdminIcon();
         overlay.remove();
     });
