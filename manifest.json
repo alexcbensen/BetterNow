@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Alex's YouNow Extension",
-  "version": "1.7",
+  "name": "Alex's BetterNow",
+  "version": "1.8",
   "icons": {
     "16": "favicon-1.png",
     "48": "favicon-2.png",
