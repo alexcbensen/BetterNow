@@ -11,6 +11,16 @@
 let verifiedAdmin = null;
 let adminButtonPending = false;
 
+// Helper to ensure hex colors have # prefix
+function normalizeHex(value) {
+    if (!value) return '';
+    value = value.trim();
+    if (value && !value.startsWith('#')) {
+        value = '#' + value;
+    }
+    return value;
+}
+
 async function verifyAdminUser() {
     if (verifiedAdmin !== null) return verifiedAdmin;
 
@@ -392,8 +402,9 @@ function renderFriendUsernames() {
             const id = input.id;
             const previewId = id.replace('-color', '-preview');
             const preview = document.getElementById(previewId);
-            if (preview && /^#[0-9A-Fa-f]{6}$/.test(input.value)) {
-                preview.style.background = input.value;
+            const value = normalizeHex(input.value);
+            if (preview && /^#[0-9A-Fa-f]{6}$/.test(value)) {
+                preview.style.background = value;
             }
         });
     });
@@ -404,13 +415,13 @@ function renderFriendUsernames() {
             const username = btn.getAttribute('data-save-settings').toLowerCase();
 
             const borderEnabled = document.getElementById(`border-enabled-${username}`)?.checked;
-            const borderColor1 = document.getElementById(`border-color1-${username}`)?.value.trim();
-            const borderColor2 = document.getElementById(`border-color2-${username}`)?.value.trim();
+            const borderColor1 = normalizeHex(document.getElementById(`border-color1-${username}`)?.value.trim());
+            const borderColor2 = normalizeHex(document.getElementById(`border-color2-${username}`)?.value.trim());
             const textEnabled = document.getElementById(`text-enabled-${username}`)?.checked;
-            const textColor = document.getElementById(`text-color-${username}`)?.value.trim();
+            const textColor = normalizeHex(document.getElementById(`text-color-${username}`)?.value.trim());
             const levelEnabled = document.getElementById(`level-enabled-${username}`)?.checked;
-            const levelColor1 = document.getElementById(`level-color1-${username}`)?.value.trim();
-            const levelColor2 = document.getElementById(`level-color2-${username}`)?.value.trim();
+            const levelColor1 = normalizeHex(document.getElementById(`level-color1-${username}`)?.value.trim());
+            const levelColor2 = normalizeHex(document.getElementById(`level-color2-${username}`)?.value.trim());
 
             friendSettings[username] = {
                 borderEnabled: borderEnabled,
