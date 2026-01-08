@@ -17,6 +17,7 @@ setInterval(createGridToggle, 1000);
 setInterval(applyGridView, 1000);
 setInterval(fixVideoFit, 1000);
 setInterval(hideCarouselBroadcasters, 200);
+setInterval(checkBroadcastStatus, 1000);
 
 // ============ Observers ============
 

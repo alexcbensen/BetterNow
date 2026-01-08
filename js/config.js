@@ -12,5 +12,10 @@ let friendGradient = "";
 let myTextColor = "";
 let friendTextColor = "";
 
+// Chest auto-drop settings (loaded from localStorage in features.js)
+let autoChestEnabled = false;
+let autoChestThreshold = null;
+let lastChestOpenLikes = 0;
+
 // Timing settings
 const SKIP_COOLDOWN = 1000; // 1 second between carousel skips
