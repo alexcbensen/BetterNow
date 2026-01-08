@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Alex's BetterNow",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "icons": {
     "16": "icons/favicon-1.png",
     "48": "icons/favicon-2.png",
     "128": "icons/favicon-3.png"
   },
-  "description": "A mix of features to improve upon the YouNow experience",
+  "description": "Adds visual enhancements and quality-of-life improvements to your streaming experience.",
   "permissions": ["storage"],
   "content_scripts": [
     {
