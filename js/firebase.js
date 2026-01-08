@@ -42,7 +42,6 @@ async function loadSettingsFromFirebase() {
         // Update the global config variables
         applyFirebaseSettings();
 
-        console.log('Firebase settings loaded:', firebaseSettings);
         return firebaseSettings;
     } catch (error) {
         console.error('Error loading Firebase settings:', error);
@@ -89,20 +88,20 @@ function applyFirebaseSettings() {
     if (firebaseSettings.myUsername) {
         myUsername = firebaseSettings.myUsername;
     }
-    if (firebaseSettings.friendUsernames) {
-        friendUsernames = firebaseSettings.friendUsernames;
+    if (firebaseSettings.friendUserIds) {
+        friendUserIds = firebaseSettings.friendUserIds;
     }
-    if (firebaseSettings.hiddenBroadcasters) {
-        hiddenBroadcasters = firebaseSettings.hiddenBroadcasters;
+    if (firebaseSettings.hiddenUserIds) {
+        hiddenUserIds = firebaseSettings.hiddenUserIds;
+    }
+    if (firebaseSettings.friendUsers) {
+        friendUsers = firebaseSettings.friendUsers;
+    }
+    if (firebaseSettings.hiddenUsers) {
+        hiddenUsers = firebaseSettings.hiddenUsers;
     }
     if (firebaseSettings.friendSettings) {
         friendSettings = firebaseSettings.friendSettings;
-    }
-    if (firebaseSettings.friendAvatars) {
-        friendAvatars = firebaseSettings.friendAvatars;
-    }
-    if (firebaseSettings.hiddenAvatars) {
-        hiddenAvatars = firebaseSettings.hiddenAvatars;
     }
     if (firebaseSettings.myGradient) {
         myGradient = firebaseSettings.myGradient;
@@ -257,10 +256,10 @@ async function saveSettingsToFirebase() {
             statusEl.textContent = 'Saving...';
         }
 
-        // Convert friendSettings object to Firestore map format
+        // Convert friendSettings object to Firestore map format (keyed by odiskd)
         const friendSettingsMap = {};
-        for (const [username, settings] of Object.entries(friendSettings)) {
-            friendSettingsMap[username] = {
+        for (const [odiskd, settings] of Object.entries(friendSettings)) {
+            friendSettingsMap[odiskd] = {
                 mapValue: {
                     fields: {
                         borderEnabled: { booleanValue: settings.borderEnabled || false },
@@ -275,20 +274,34 @@ async function saveSettingsToFirebase() {
             };
         }
 
-        // Convert friendAvatars object to Firestore map format
-        const friendAvatarsMap = {};
-        for (const [username, url] of Object.entries(friendAvatars)) {
-            friendAvatarsMap[username] = { stringValue: url };
+        // Convert friendUsers object to Firestore map format
+        const friendUsersMap = {};
+        for (const [odiskd, data] of Object.entries(friendUsers)) {
+            friendUsersMap[odiskd] = {
+                mapValue: {
+                    fields: {
+                        username: { stringValue: data.username || '' },
+                        avatar: { stringValue: data.avatar || '' }
+                    }
+                }
+            };
         }
 
-        // Convert hiddenAvatars object to Firestore map format
-        const hiddenAvatarsMap = {};
-        for (const [username, url] of Object.entries(hiddenAvatars)) {
-            hiddenAvatarsMap[username] = { stringValue: url };
+        // Convert hiddenUsers object to Firestore map format
+        const hiddenUsersMap = {};
+        for (const [odiskd, data] of Object.entries(hiddenUsers)) {
+            hiddenUsersMap[odiskd] = {
+                mapValue: {
+                    fields: {
+                        username: { stringValue: data.username || '' },
+                        avatar: { stringValue: data.avatar || '' }
+                    }
+                }
+            };
         }
 
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUsernames&updateMask.fieldPaths=hiddenBroadcasters&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=friendAvatars&updateMask.fieldPaths=hiddenAvatars`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=friendSettings`,
             {
                 method: 'PATCH',
                 headers: {
@@ -297,29 +310,29 @@ async function saveSettingsToFirebase() {
                 },
                 body: JSON.stringify({
                     fields: {
-                        friendUsernames: {
+                        friendUserIds: {
                             arrayValue: {
-                                values: friendUsernames.map(u => ({ stringValue: u }))
+                                values: friendUserIds.map(id => ({ stringValue: String(id) }))
                             }
                         },
-                        hiddenBroadcasters: {
+                        hiddenUserIds: {
                             arrayValue: {
-                                values: hiddenBroadcasters.map(u => ({ stringValue: u }))
+                                values: hiddenUserIds.map(id => ({ stringValue: String(id) }))
+                            }
+                        },
+                        friendUsers: {
+                            mapValue: {
+                                fields: friendUsersMap
+                            }
+                        },
+                        hiddenUsers: {
+                            mapValue: {
+                                fields: hiddenUsersMap
                             }
                         },
                         friendSettings: {
                             mapValue: {
                                 fields: friendSettingsMap
-                            }
-                        },
-                        friendAvatars: {
-                            mapValue: {
-                                fields: friendAvatarsMap
-                            }
-                        },
-                        hiddenAvatars: {
-                            mapValue: {
-                                fields: hiddenAvatarsMap
                             }
                         }
                     }

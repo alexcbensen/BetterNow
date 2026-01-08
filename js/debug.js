@@ -6,17 +6,16 @@
  * This code may not be copied, modified, or distributed without permission.
  */
 
-// Debug functions - log to console immediately for now
-console.log('BetterNow debug.js loaded');
-
-// Store references on a global we can access
-document.body.setAttribute('data-betternow-loaded', 'true');
+// Debug functions accessible via console events
+// Usage: document.dispatchEvent(new Event('debugFriends'))
 
 // Create debug function that logs current state
 function runDebugFriends() {
-    console.log('friendUsernames:', friendUsernames);
+    console.log('friendUserIds:', friendUserIds);
+    console.log('friendUsers:', friendUsers);
     console.log('friendSettings:', friendSettings);
-    console.log('firebaseSettings:', firebaseSettings);
+    console.log('hiddenUserIds:', hiddenUserIds);
+    console.log('hiddenUsers:', hiddenUsers);
 }
 
 function runDebugChest() {

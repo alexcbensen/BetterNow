@@ -410,8 +410,12 @@ function applyBorders() {
     });
 
     // Apply borders for friend usernames
-    friendUsernames.forEach(username => {
-        const settings = friendSettings[username.toLowerCase()] || {};
+    friendUserIds.forEach(odiskd => {
+        const userData = friendUsers[odiskd] || {};
+        const username = userData.username;
+        if (!username) return;
+
+        const settings = friendSettings[odiskd] || {};
 
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
             const li = span.closest('li');
@@ -541,7 +545,11 @@ function fixVideoFit() {
 // ============ Carousel / Hidden Broadcasters ============
 
 function hideBroadcasters() {
-    hiddenBroadcasters.forEach(username => {
+    hiddenUserIds.forEach(odiskd => {
+        const userData = hiddenUsers[odiskd] || {};
+        const username = userData.username;
+        if (!username) return;
+
         document.querySelectorAll(`a[href="/${username}"]`).forEach(el => {
             const card = el.closest('li');
             if (card && !card.closest('app-broadcasts-carousel')) {
@@ -591,9 +599,11 @@ function hideCarouselBroadcasters() {
 
             if (usernameEl) {
                 const username = usernameEl.textContent.trim();
-                const isHidden = hiddenBroadcasters.some(hidden =>
-                    hidden.toLowerCase() === username.toLowerCase()
-                );
+                // Check if username matches any hidden user
+                const isHidden = hiddenUserIds.some(odiskd => {
+                    const userData = hiddenUsers[odiskd] || {};
+                    return userData.username && userData.username.toLowerCase() === username.toLowerCase();
+                });
 
                 if (isHidden) {
                     if (now - lastSkipTime > SKIP_COOLDOWN) {

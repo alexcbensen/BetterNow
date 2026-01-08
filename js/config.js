@@ -11,21 +11,19 @@ const EXCLUDED_FROM_AUTO_CHEST = ["alex"]; // Excluded usernames (lowercase)
 // Admin settings
 const ADMIN_USER_IDS = ["60578594", "60974148", "61819309"];
 
-// Username lists (loaded from Firebase)
+// Username lists (loaded from Firebase) - stored as arrays of userIds
 let myUsername = "";
-let friendUsernames = [];
-let hiddenBroadcasters = [];
+let friendUserIds = [];
+let hiddenUserIds = [];
 
-// Friend settings - individual styles per friend
-// Format: { "username": { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00" } }
+// User data - maps odiskd to user info
+// Format: { "userId": { username: "Name", avatar: "https://..." } }
+let friendUsers = {};
+let hiddenUsers = {};
+
+// Friend settings - individual styles per friend (keyed by odiskd)
+// Format: { "userId": { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00" } }
 let friendSettings = {};
-
-// Friend avatars - profile pictures from YouNow API
-// Format: { "username": "https://..." }
-let friendAvatars = {};
-
-// Hidden broadcaster avatars
-let hiddenAvatars = {};
 
 // Gradient definitions (loaded from Firebase)
 let myGradient = "";

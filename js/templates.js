@@ -90,7 +90,7 @@ const templates = {
                 <p id="admin-save-status" style="color: #888; margin: 10px 0 0 0; text-align: center; display: none;"></p>
             </div>
             
-            <div style="padding-top: 16px; border-top: 1px solid #333; display: flex; gap: 10px;">
+            <div style="padding-top: 16px; border-top: 1px solid #333;">
                 <button id="admin-panel-lock" style="
                     background: #444;
                     border: none;
@@ -103,18 +103,6 @@ const templates = {
                     align-items: center;
                     gap: 6px;
                 "><i class="bi bi-box-arrow-right"></i> Lock Panel</button>
-                <button id="refresh-avatars-btn" style="
-                    background: #3b82f6;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 8px 16px;
-                    color: white;
-                    font-size: 14px;
-                    cursor: pointer;
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                ">🔄 Refresh Avatars</button>
             </div>
         </div>
     `
