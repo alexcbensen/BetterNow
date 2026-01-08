@@ -421,16 +421,29 @@ function applyBorders() {
 
     // Apply borders for friend usernames
     friendUsernames.forEach(username => {
+        const settings = friendSettings[username.toLowerCase()] || {};
+
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
             const li = span.closest('li');
             if (li && li.closest('app-chat-list')) {
                 const card = li.querySelector('.user-card');
-                if (card) {
-                    card.style.border = '1px solid transparent';
+
+                // Apply border if enabled
+                if (card && settings.borderEnabled && settings.borderColor1) {
+                    card.style.border = '2px solid transparent';
                     card.style.borderRadius = '8px';
-                    card.style.backgroundImage = `linear-gradient(#212121, #212211), ${friendGradient}`;
-                    card.style.backgroundOrigin = 'border-box';
-                    card.style.backgroundClip = 'padding-box, border-box';
+
+                    // Use gradient if two colors provided, otherwise solid color
+                    if (settings.borderColor2) {
+                        card.style.backgroundImage = `linear-gradient(#212121, #212121), linear-gradient(135deg, ${settings.borderColor1}, ${settings.borderColor2})`;
+                        card.style.backgroundOrigin = 'border-box';
+                        card.style.backgroundClip = 'padding-box, border-box';
+                    } else {
+                        card.style.borderColor = settings.borderColor1;
+                        card.style.backgroundImage = '';
+                        card.style.backgroundOrigin = '';
+                        card.style.backgroundClip = '';
+                    }
                 }
 
                 const comment = li.querySelector('.comment');
@@ -438,9 +451,28 @@ function applyBorders() {
                     comment.className = 'comment ng-star-inserted';
                 }
 
-                const usernameSpan = li.querySelector(`span[title="${username}"]`);
-                if (usernameSpan) {
-                    usernameSpan.style.setProperty('color', friendTextColor, 'important');
+                // Apply text color if set
+                if (settings.textColor) {
+                    const usernameSpan = li.querySelector(`span[title="${username}"]`);
+                    if (usernameSpan) {
+                        usernameSpan.style.setProperty('color', settings.textColor, 'important');
+                    }
+                }
+
+                // Apply level background if enabled
+                if (settings.levelEnabled && settings.levelColor1) {
+                    const levelBadge = li.querySelector('app-user-level .user-level');
+                    if (levelBadge) {
+                        // Use gradient if two colors provided, otherwise solid color
+                        if (settings.levelColor2) {
+                            levelBadge.style.background = `linear-gradient(135deg, ${settings.levelColor1}, ${settings.levelColor2})`;
+                        } else {
+                            levelBadge.style.background = settings.levelColor1;
+                        }
+                        levelBadge.style.borderRadius = '9px';
+                        levelBadge.style.padding = '.125rem .5rem';
+                        levelBadge.style.color = '#fff';
+                    }
                 }
             }
         });

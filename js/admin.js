@@ -208,7 +208,9 @@ function renderFriendUsernames() {
     const container = document.getElementById('friend-usernames-list');
     if (!container) return;
 
-    container.innerHTML = friendUsernames.map((username, index) => `
+    container.innerHTML = friendUsernames.map((username, index) => {
+        const settings = friendSettings[username.toLowerCase()] || {};
+        return `
         <div style="
             display: flex;
             align-items: center;
@@ -219,25 +221,213 @@ function renderFriendUsernames() {
             margin-bottom: 6px;
         ">
             <span style="color: white;">${username}</span>
-            <button data-remove-friend="${index}" style="
-                background: #ef4444;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                color: white;
-                font-size: 12px;
-                cursor: pointer;
-            ">Remove</button>
+            <div style="display: flex; gap: 6px;">
+                <button data-settings-friend="${username}" title="Style settings" style="
+                    background: #3b82f6;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    color: white;
+                    font-size: 12px;
+                    cursor: pointer;
+                ">🎨</button>
+                <button data-remove-friend="${index}" style="
+                    background: #ef4444;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    color: white;
+                    font-size: 12px;
+                    cursor: pointer;
+                ">Remove</button>
+            </div>
         </div>
-    `).join('');
+        <!-- Settings panel for ${username} -->
+        <div id="settings-panel-${username.toLowerCase()}" style="
+            display: none;
+            background: #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            margin-top: -4px;
+        ">
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Border settings -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="border-enabled-${username.toLowerCase()}" ${settings.borderEnabled ? 'checked' : ''} style="cursor: pointer;" />
+                    <label style="color: #ccc; font-size: 13px; width: 60px;">Border:</label>
+                    <input type="text" id="border-color1-${username.toLowerCase()}" value="${settings.borderColor1 || ''}" placeholder="#hex" style="
+                        width: 70px;
+                        background: #2a2a2a;
+                        border: 1px solid #444;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: white;
+                        font-size: 12px;
+                    " />
+                    <div id="border-preview1-${username.toLowerCase()}" style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: ${settings.borderColor1 || '#333'};
+                        border: 1px solid #555;
+                    "></div>
+                    <input type="text" id="border-color2-${username.toLowerCase()}" value="${settings.borderColor2 || ''}" placeholder="#hex (optional)" style="
+                        width: 70px;
+                        background: #2a2a2a;
+                        border: 1px solid #444;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: white;
+                        font-size: 12px;
+                    " />
+                    <div id="border-preview2-${username.toLowerCase()}" style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: ${settings.borderColor2 || '#333'};
+                        border: 1px solid #555;
+                    "></div>
+                </div>
+                <!-- Text color settings -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="text-enabled-${username.toLowerCase()}" ${settings.textColor ? 'checked' : ''} style="cursor: pointer;" />
+                    <label style="color: #ccc; font-size: 13px; width: 60px;">Name:</label>
+                    <input type="text" id="text-color-${username.toLowerCase()}" value="${settings.textColor || ''}" placeholder="#hex" style="
+                        width: 70px;
+                        background: #2a2a2a;
+                        border: 1px solid #444;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: white;
+                        font-size: 12px;
+                    " />
+                    <div id="text-preview-${username.toLowerCase()}" style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: ${settings.textColor || '#333'};
+                        border: 1px solid #555;
+                    "></div>
+                </div>
+                <!-- Level background settings -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="level-enabled-${username.toLowerCase()}" ${settings.levelEnabled ? 'checked' : ''} style="cursor: pointer;" />
+                    <label style="color: #ccc; font-size: 13px; width: 60px;">Level:</label>
+                    <input type="text" id="level-color1-${username.toLowerCase()}" value="${settings.levelColor1 || ''}" placeholder="#hex" style="
+                        width: 70px;
+                        background: #2a2a2a;
+                        border: 1px solid #444;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: white;
+                        font-size: 12px;
+                    " />
+                    <div id="level-preview1-${username.toLowerCase()}" style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: ${settings.levelColor1 || '#333'};
+                        border: 1px solid #555;
+                    "></div>
+                    <input type="text" id="level-color2-${username.toLowerCase()}" value="${settings.levelColor2 || ''}" placeholder="#hex (optional)" style="
+                        width: 70px;
+                        background: #2a2a2a;
+                        border: 1px solid #444;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: white;
+                        font-size: 12px;
+                    " />
+                    <div id="level-preview2-${username.toLowerCase()}" style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 4px;
+                        background: ${settings.levelColor2 || '#333'};
+                        border: 1px solid #555;
+                    "></div>
+                </div>
+                <!-- Save button -->
+                <button data-save-settings="${username}" style="
+                    background: #22c55e;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 6px 12px;
+                    color: white;
+                    font-size: 12px;
+                    cursor: pointer;
+                    align-self: flex-end;
+                ">Save Style</button>
+            </div>
+        </div>
+    `}).join('');
 
     // Add click handlers for remove buttons
     container.querySelectorAll('[data-remove-friend]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const index = parseInt(btn.getAttribute('data-remove-friend'));
+            const username = friendUsernames[index];
             friendUsernames.splice(index, 1);
+            // Also remove settings for this user
+            delete friendSettings[username.toLowerCase()];
             renderFriendUsernames();
             await saveSettingsToFirebase();
+        });
+    });
+
+    // Add click handlers for settings buttons
+    container.querySelectorAll('[data-settings-friend]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const username = btn.getAttribute('data-settings-friend');
+            const panel = document.getElementById(`settings-panel-${username.toLowerCase()}`);
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+        });
+    });
+
+    // Add handlers for color preview updates
+    container.querySelectorAll('input[type="text"][id*="-color"]').forEach(input => {
+        input.addEventListener('input', () => {
+            const id = input.id;
+            const previewId = id.replace('-color', '-preview');
+            const preview = document.getElementById(previewId);
+            if (preview && /^#[0-9A-Fa-f]{6}$/.test(input.value)) {
+                preview.style.background = input.value;
+            }
+        });
+    });
+
+    // Add handlers for save buttons
+    container.querySelectorAll('[data-save-settings]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const username = btn.getAttribute('data-save-settings').toLowerCase();
+
+            const borderEnabled = document.getElementById(`border-enabled-${username}`)?.checked;
+            const borderColor1 = document.getElementById(`border-color1-${username}`)?.value.trim();
+            const borderColor2 = document.getElementById(`border-color2-${username}`)?.value.trim();
+            const textEnabled = document.getElementById(`text-enabled-${username}`)?.checked;
+            const textColor = document.getElementById(`text-color-${username}`)?.value.trim();
+            const levelEnabled = document.getElementById(`level-enabled-${username}`)?.checked;
+            const levelColor1 = document.getElementById(`level-color1-${username}`)?.value.trim();
+            const levelColor2 = document.getElementById(`level-color2-${username}`)?.value.trim();
+
+            friendSettings[username] = {
+                borderEnabled: borderEnabled,
+                borderColor1: borderEnabled ? borderColor1 : '',
+                borderColor2: borderEnabled ? borderColor2 : '',
+                textColor: textEnabled ? textColor : '',
+                levelEnabled: levelEnabled,
+                levelColor1: levelEnabled ? levelColor1 : '',
+                levelColor2: levelEnabled ? levelColor2 : ''
+            };
+
+            await saveSettingsToFirebase();
+            applyBorders();
+
+            // Visual feedback
+            btn.textContent = 'Saved!';
+            setTimeout(() => { btn.textContent = 'Save Style'; }, 1000);
         });
     });
 }

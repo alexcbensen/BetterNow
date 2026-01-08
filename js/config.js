@@ -9,18 +9,20 @@
 const EXCLUDED_FROM_AUTO_CHEST = ["alex"]; // Excluded usernames (lowercase)
 
 // Admin settings
-const ADMIN_USER_IDS = ["60578594", "60974148"];
+const ADMIN_USER_IDS = ["60578594", "60974148", "61819309"];
 
 // Username lists (loaded from Firebase)
 let myUsername = "";
 let friendUsernames = [];
 let hiddenBroadcasters = [];
 
+// Friend settings - individual styles per friend
+// Format: { "username": { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00" } }
+let friendSettings = {};
+
 // Gradient definitions (loaded from Firebase)
 let myGradient = "";
-let friendGradient = "";
 let myTextColor = "";
-let friendTextColor = "";
 
 // Chest auto-drop settings (loaded from localStorage in features.js)
 let autoChestEnabled = false;

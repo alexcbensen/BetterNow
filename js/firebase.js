@@ -95,17 +95,14 @@ function applyFirebaseSettings() {
     if (firebaseSettings.hiddenBroadcasters) {
         hiddenBroadcasters = firebaseSettings.hiddenBroadcasters;
     }
+    if (firebaseSettings.friendSettings) {
+        friendSettings = firebaseSettings.friendSettings;
+    }
     if (firebaseSettings.myGradient) {
         myGradient = firebaseSettings.myGradient;
     }
-    if (firebaseSettings.friendGradient) {
-        friendGradient = firebaseSettings.friendGradient;
-    }
     if (firebaseSettings.myTextColor) {
         myTextColor = firebaseSettings.myTextColor;
-    }
-    if (firebaseSettings.friendTextColor) {
-        friendTextColor = firebaseSettings.friendTextColor;
     }
 
     // Re-apply borders with new settings
@@ -254,8 +251,26 @@ async function saveSettingsToFirebase() {
             statusEl.textContent = 'Saving...';
         }
 
+        // Convert friendSettings object to Firestore map format
+        const friendSettingsMap = {};
+        for (const [username, settings] of Object.entries(friendSettings)) {
+            friendSettingsMap[username] = {
+                mapValue: {
+                    fields: {
+                        borderEnabled: { booleanValue: settings.borderEnabled || false },
+                        borderColor1: { stringValue: settings.borderColor1 || '' },
+                        borderColor2: { stringValue: settings.borderColor2 || '' },
+                        textColor: { stringValue: settings.textColor || '' },
+                        levelEnabled: { booleanValue: settings.levelEnabled || false },
+                        levelColor1: { stringValue: settings.levelColor1 || '' },
+                        levelColor2: { stringValue: settings.levelColor2 || '' }
+                    }
+                }
+            };
+        }
+
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUsernames&updateMask.fieldPaths=hiddenBroadcasters`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUsernames&updateMask.fieldPaths=hiddenBroadcasters&updateMask.fieldPaths=friendSettings`,
             {
                 method: 'PATCH',
                 headers: {
@@ -272,6 +287,11 @@ async function saveSettingsToFirebase() {
                         hiddenBroadcasters: {
                             arrayValue: {
                                 values: hiddenBroadcasters.map(u => ({ stringValue: u }))
+                            }
+                        },
+                        friendSettings: {
+                            mapValue: {
+                                fields: friendSettingsMap
                             }
                         }
                     }
