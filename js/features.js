@@ -162,9 +162,15 @@ function removeChestControls() {
     }
 }
 
+function isChestDropping() {
+    // Check if the chest lottie animation is visible (chest is currently dropping)
+    return document.querySelector('app-chest-lottie') !== null;
+}
+
 async function checkChestThreshold() {
     if (!autoChestEnabled || !isBroadcasting() || isOpeningChest) return;
     if (autoChestThreshold === null || autoChestThreshold <= 0) return;
+    if (isChestDropping()) return;
 
     const currentLikes = getCurrentLikesFromToolbar();
     if (currentLikes === null) return;
