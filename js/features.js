@@ -907,6 +907,11 @@ function createBetterNowToolbar() {
     // Insert above YouNow toolbar
     youNowToolbar.parentNode.insertBefore(toolbar, youNowToolbar);
 
+    // Try to create admin bar (async, for admin users only)
+    if (typeof createAdminBar === 'function') {
+        createAdminBar();
+    }
+
     return toolbar;
 }
 
@@ -1126,6 +1131,12 @@ function applyEarlyVolumes() {
 
         if (!videoEl || videoEl.dataset.volumeApplied) return;
 
+        // Skip the user's own tile (shows "You") to prevent echo
+            videoEl.muted = true;
+            videoEl.dataset.volumeApplied = 'true';
+            return;
+        }
+
         // Get base volume (individual setting or default 100)
         const baseVolume = (username && guestVolumeStates.has(username))
             ? guestVolumeStates.get(username)
@@ -1172,12 +1183,19 @@ function createVolumeSliders() {
         const videoEl = tile.querySelector('video');
         if (!videoEl) return;
 
+        // Get username for this tile to track volume state
+        const username = getGuestUsername(tile);
+
+        // Skip the user's own tile (shows "You") to prevent echo
+        if (username === 'You') {
+            // Keep own audio muted
+            videoEl.muted = true;
+            return;
+        }
+
         // Find the toolbar overlay bottom (where the volume icon should go)
         const toolbarBottom = tile.querySelector('.video-overlay-bottom .toolbar__right');
         if (!toolbarBottom) return;
-
-        // Get username for this tile to track volume state
-        const username = getGuestUsername(tile);
 
         // Get global multiplier
         const globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
@@ -1364,6 +1382,12 @@ function reapplyAllGuestVolumes() {
         const volumeIcon = tile.querySelector('.betternow-volume-slider .volume__icon i');
 
         if (!videoEl) return;
+
+        // Skip the user's own tile (shows "You") to prevent echo
+        if (username === 'You') {
+            videoEl.muted = true;
+            return;
+        }
 
         // Get base volume
         const baseVolume = (username && guestVolumeStates.has(username))
