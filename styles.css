@@ -87,24 +87,35 @@ app-chat .user-card__body {
     display: none !important;
 }
 
-/* Balance top toolbar so middle stays centered when we add our volume slider */
-app-top-toolbar .toolbar {
-    display: flex;
-    justify-content: space-between;
+/* BetterNow toolbar slider styles */
+#betternow-toolbar .slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 0.3rem;
+    background: var(--color-lightgray, #d3d3d3);
+    border-radius: 2rem;
+    cursor: pointer;
 }
 
-app-top-toolbar .toolbar__left,
-app-top-toolbar .toolbar__right {
-    flex: 1;
+#betternow-toolbar .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: .8rem;
+    height: .8rem;
+    border-radius: 50%;
+    background: var(--color-primary-green, #08d687);
+    cursor: pointer;
 }
 
-app-top-toolbar .toolbar__middle {
-    flex: 0 0 auto;
-}
-
-app-top-toolbar .toolbar__right {
-    display: flex;
-    justify-content: flex-end;
+#betternow-toolbar .slider::-moz-range-thumb {
+    -moz-appearance: none;
+    appearance: none;
+    width: .8rem;
+    height: .8rem;
+    border-radius: 50%;
+    background: var(--color-primary-green, #08d687);
+    cursor: pointer;
+    border: none;
 }
 
 /* Volume slider styles for guest videos */

@@ -553,7 +553,7 @@ function createGridToggle() {
     toggleBtn.innerHTML = '⊞';
     toggleBtn.title = 'Toggle Grid View';
     toggleBtn.style.cssText = `
-        background: ${gridViewEnabled ? '#22c55e' : 'transparent'};
+        background: ${gridViewEnabled ? '#08d687' : 'transparent'};
         border: 1px solid #555;
         color: white;
         width: 36px;
@@ -571,7 +571,7 @@ function createGridToggle() {
 
     toggleBtn.onclick = () => {
         gridViewEnabled = !gridViewEnabled;
-        toggleBtn.style.background = gridViewEnabled ? '#22c55e' : 'transparent';
+        toggleBtn.style.background = gridViewEnabled ? '#08d687' : 'transparent';
         applyGridView();
     };
 
@@ -790,11 +790,64 @@ function getGuestUsername(tile) {
     return usernameEl ? usernameEl.textContent.trim() : null;
 }
 
+// ============ BetterNow Toolbar ============
+
+function createBetterNowToolbar() {
+    // Check if toolbar already exists
+    if (document.getElementById('betternow-toolbar')) return document.getElementById('betternow-toolbar');
+
+    // Find the YouNow top toolbar to insert above
+    const youNowToolbar = document.querySelector('app-top-toolbar');
+    if (!youNowToolbar) return null;
+
+    // Create our toolbar
+    const toolbar = document.createElement('div');
+    toolbar.id = 'betternow-toolbar';
+    toolbar.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid var(--main-border-color, #4e4e4e);
+    `;
+
+    // Create left, middle, and right sections
+    const leftSection = document.createElement('div');
+    leftSection.className = 'betternow-toolbar__left';
+    leftSection.style.cssText = 'display: flex; align-items: center; gap: 12px; flex: 1;';
+
+    const middleSection = document.createElement('div');
+    middleSection.className = 'betternow-toolbar__middle';
+    middleSection.style.cssText = 'display: flex; align-items: center; justify-content: center;';
+
+    const rightSection = document.createElement('div');
+    rightSection.className = 'betternow-toolbar__right';
+    rightSection.style.cssText = 'display: flex; align-items: center; gap: 12px; flex: 1; justify-content: flex-end;';
+
+    // Add BetterNow branding to middle
+    const branding = document.createElement('span');
+    branding.textContent = 'BetterNow';
+    branding.style.cssText = 'font-size: 0.8rem; font-weight: 600; color: #08d687; letter-spacing: 0.5px;';
+    middleSection.appendChild(branding);
+
+    toolbar.appendChild(leftSection);
+    toolbar.appendChild(middleSection);
+    toolbar.appendChild(rightSection);
+
+    // Insert above YouNow toolbar
+    youNowToolbar.parentNode.insertBefore(toolbar, youNowToolbar);
+
+    return toolbar;
+}
+
 // Create global volume slider for all guests
 function createGlobalVolumeSlider() {
-    // Find the top toolbar (above the stream with viewer count)
-    const topToolbar = document.querySelector('app-top-toolbar .toolbar__right');
-    if (!topToolbar) return;
+    // Ensure BetterNow toolbar exists
+    const betterNowToolbar = createBetterNowToolbar();
+    if (!betterNowToolbar) return;
+
+    const rightSection = betterNowToolbar.querySelector('.betternow-toolbar__right');
+    if (!rightSection) return;
 
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
     const hasGuests = videoTiles.length > 0;
@@ -812,13 +865,13 @@ function createGlobalVolumeSlider() {
     }
 
     // Check if already exists
-    let volumeContainer = topToolbar.querySelector('.betternow-global-volume');
+    let volumeContainer = rightSection.querySelector('.betternow-global-volume');
     const alreadyExists = !!volumeContainer;
 
     if (!alreadyExists) {
         // Create new slider
         volumeContainer = document.createElement('div');
-        volumeContainer.className = 'betternow-global-volume toolbar__entry';
+        volumeContainer.className = 'betternow-global-volume';
         volumeContainer.style.cssText = 'position: relative; display: flex; align-items: center;';
 
         // Create label (plain text, positioned above on hover)
@@ -829,11 +882,10 @@ function createGlobalVolumeSlider() {
 
         const volumeContent = document.createElement('div');
         volumeContent.className = 'volume toolbar__content';
-        volumeContent.style.cssText = 'display: flex; align-items: center; gap: 0; padding: 4px 0 4px 8px;';
+        volumeContent.style.cssText = 'display: flex; align-items: center; gap: 8px;';
 
         const sliderContainer = document.createElement('div');
         sliderContainer.className = 'volume__range';
-        sliderContainer.style.cssText = 'margin-right: 4px;';
 
         const slider = document.createElement('input');
         slider.type = 'range';
@@ -855,13 +907,13 @@ function createGlobalVolumeSlider() {
         document.body.appendChild(label);
         volumeContainer.appendChild(volumeContent);
 
-        topToolbar.insertBefore(volumeContainer, topToolbar.firstChild);
+        rightSection.appendChild(volumeContainer);
 
-        // Show label only on hover, positioned above
+        // Show label only on hover, positioned above the slider
         volumeContent.addEventListener('mouseenter', () => {
-            const rect = volumeContent.getBoundingClientRect();
-            label.style.left = (rect.left + rect.width / 2) + 'px';
-            label.style.top = (rect.top - 20) + 'px';
+            const sliderRect = sliderContainer.getBoundingClientRect();
+            label.style.left = (sliderRect.left + sliderRect.width / 2) + 'px';
+            label.style.top = (sliderRect.top - 20) + 'px';
             label.style.transform = 'translateX(-50%)';
             label.style.display = '';
         });
