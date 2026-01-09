@@ -106,6 +106,9 @@ function applyFirebaseSettings() {
     if (firebaseSettings.friendSettings) {
         friendSettings = firebaseSettings.friendSettings;
     }
+    if (firebaseSettings.grantedFeatures) {
+        grantedFeatures = firebaseSettings.grantedFeatures;
+    }
     if (firebaseSettings.myGradient) {
         myGradient = firebaseSettings.myGradient;
     }
@@ -325,8 +328,19 @@ async function saveSettingsToFirebase() {
             };
         }
 
+        // Convert grantedFeatures object to Firestore map format
+        // Format: { "userId": ["filterBypass", "otherFeature"] }
+        const grantedFeaturesMap = {};
+        for (const [odiskd, features] of Object.entries(grantedFeatures)) {
+            grantedFeaturesMap[odiskd] = {
+                arrayValue: {
+                    values: (features || []).map(f => ({ stringValue: f }))
+                }
+            };
+        }
+
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures`,
             {
                 method: 'PATCH',
                 headers: {
@@ -363,6 +377,11 @@ async function saveSettingsToFirebase() {
                         friendSettings: {
                             mapValue: {
                                 fields: friendSettingsMap
+                            }
+                        },
+                        grantedFeatures: {
+                            mapValue: {
+                                fields: grantedFeaturesMap
                             }
                         }
                     }

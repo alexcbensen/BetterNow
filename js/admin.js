@@ -70,40 +70,39 @@ if (chatFilterBypassEnabled) {
     injectFilterBypassScript();
 }
 
-// ============ Admin Bar ============
+// ============ Feature Access Check ============
 
-function createAdminBar() {
-    // Check if admin bar already exists
-    if (document.getElementById('betternow-admin-bar')) return;
-
-    // Wait for BetterNow toolbar to exist
-    const betterNowToolbar = document.getElementById('betternow-toolbar');
-    if (!betterNowToolbar) return;
-
-    // Get user ID from performance entries
+function userHasFeature(feature) {
     const userId = getCurrentUserId();
-    if (!userId) return;
+    if (!userId) return false;
 
-    // Check if user is admin
-    if (!ADMIN_USER_IDS.includes(userId)) return;
+    // Admins have all features
+    if (ADMIN_USER_IDS.includes(userId)) return true;
 
-    // Create the admin bar
-    const adminBar = document.createElement('div');
-    adminBar.id = 'betternow-admin-bar';
-    adminBar.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 6px 12px;
-    `;
+    // Check granted features
+    const features = grantedFeatures[userId] || [];
+    return features.includes(feature);
+}
 
-    // Create left section
-    const leftSection = document.createElement('div');
-    leftSection.style.cssText = 'display: flex; align-items: center; gap: 12px;';
+// ============ Filter Bypass Button (BetterNow Toolbar) ============
 
-    // Chat Filter Bypass toggle button
+function createFilterBypassButton() {
+    // Check if button already exists
+    if (document.getElementById('betternow-filter-bypass-btn')) return;
+
+    // Check if user has access to this feature
+    if (!userHasFeature('filterBypass')) return;
+
+    // Find the BetterNow toolbar left section
+    const toolbar = document.getElementById('betternow-toolbar');
+    if (!toolbar) return;
+
+    const leftSection = toolbar.querySelector('#betternow-toolbar > div:first-child');
+    if (!leftSection) return;
+
+    // Create the filter bypass toggle button
     const filterBypassBtn = document.createElement('button');
-    filterBypassBtn.id = 'admin-filter-bypass-btn';
+    filterBypassBtn.id = 'betternow-filter-bypass-btn';
     filterBypassBtn.textContent = 'FILTER BYPASS';
     filterBypassBtn.style.cssText = `
         background: ${chatFilterBypassEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
@@ -130,38 +129,19 @@ function createAdminBar() {
         }
         localStorage.setItem('betternow_chatFilterBypass', chatFilterBypassEnabled);
     };
+
     leftSection.appendChild(filterBypassBtn);
-
-    // Create right section (empty for now, can add more admin features later)
-    const rightSection = document.createElement('div');
-    rightSection.style.cssText = 'display: flex; align-items: center; gap: 12px;';
-
-    adminBar.appendChild(leftSection);
-    adminBar.appendChild(rightSection);
-
-    // Insert above BetterNow toolbar
-    betterNowToolbar.parentNode.insertBefore(adminBar, betterNowToolbar);
 }
 
-// Try to create admin bar when conditions are met
-function tryCreateAdminBar() {
-    if (document.getElementById('betternow-toolbar') && !document.getElementById('betternow-admin-bar')) {
-        createAdminBar();
+// Try to create filter bypass button periodically (needs Firebase settings loaded)
+function tryCreateFilterBypassButton() {
+    if (!document.getElementById('betternow-filter-bypass-btn')) {
+        createFilterBypassButton();
     }
 }
 
-// Watch for BetterNow toolbar creation
-const adminBarObserver = new MutationObserver(() => {
-    tryCreateAdminBar();
-});
-
-// Start observing
-if (document.body) {
-    adminBarObserver.observe(document.body, { childList: true, subtree: true });
-}
-
-// Also try on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', tryCreateAdminBar);
+// Check periodically since Firebase settings load async
+setInterval(tryCreateFilterBypassButton, 1000);
 
 // Helper to ensure hex colors have # prefix
 function normalizeHex(value) {
@@ -442,6 +422,8 @@ function renderFriendUsernames() {
         const username = userData.username || odiskd;
         const avatar = userData.avatar || '';
         const settings = friendSettings[odiskd] || {};
+        const features = grantedFeatures[odiskd] || [];
+        const hasFilterBypass = features.includes('filterBypass');
         return `
         <div style="
             display: flex;
@@ -472,6 +454,15 @@ function renderFriendUsernames() {
                     font-size: 12px;
                     cursor: pointer;
                 ">🔄</button>
+                <button data-features-friend="${odiskd}" title="Feature access" style="
+                    background: #8b5cf6;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    color: white;
+                    font-size: 12px;
+                    cursor: pointer;
+                ">⚡</button>
                 <button data-settings-friend="${odiskd}" title="Style settings" style="
                     background: #3b82f6;
                     border: none;
@@ -490,6 +481,33 @@ function renderFriendUsernames() {
                     font-size: 12px;
                     cursor: pointer;
                 ">Remove</button>
+            </div>
+        </div>
+        <!-- Features panel for ${odiskd} -->
+        <div id="features-panel-${odiskd}" style="
+            display: none;
+            background: #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            margin-top: -4px;
+        ">
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <p style="color: #888; font-size: 11px; margin: 0;">Grant features to ${username}:</p>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="feature-filterBypass-${odiskd}" ${hasFilterBypass ? 'checked' : ''} style="cursor: pointer;" />
+                    <label for="feature-filterBypass-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Filter Bypass</label>
+                </div>
+                <button data-save-features="${odiskd}" style="
+                    background: #22c55e;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 6px 12px;
+                    color: white;
+                    font-size: 12px;
+                    cursor: pointer;
+                    align-self: flex-end;
+                ">Save Features</button>
             </div>
         </div>
         <!-- Settings panel for ${odiskd} -->
@@ -673,6 +691,37 @@ function renderFriendUsernames() {
             if (panel) {
                 panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
             }
+        });
+    });
+
+    // Add click handlers for features buttons
+    container.querySelectorAll('[data-features-friend]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const odiskd = btn.getAttribute('data-features-friend');
+            const panel = document.getElementById(`features-panel-${odiskd}`);
+            if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+        });
+    });
+
+    // Add handlers for save features buttons
+    container.querySelectorAll('[data-save-features]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const odiskd = btn.getAttribute('data-save-features');
+            const hasFilterBypass = document.getElementById(`feature-filterBypass-${odiskd}`)?.checked;
+
+            // Build features array
+            const features = [];
+            if (hasFilterBypass) features.push('filterBypass');
+
+            grantedFeatures[odiskd] = features;
+
+            await saveSettingsToFirebase();
+
+            // Visual feedback
+            btn.textContent = 'Saved!';
+            setTimeout(() => { btn.textContent = 'Save Features'; }, 1000);
         });
     });
 

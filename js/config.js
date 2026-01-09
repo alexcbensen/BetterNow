@@ -30,6 +30,10 @@ let hiddenExceptions = {};
 // Format: { "userId": { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00" } }
 let friendSettings = {};
 
+// Granted features - which features each user has access to (keyed by odiskd)
+// Format: { "userId": ["filterBypass", "otherFeature"] }
+let grantedFeatures = {};
+
 // Gradient definitions (loaded from Firebase)
 let myGradient = "";
 let myTextColor = "";
