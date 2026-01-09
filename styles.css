@@ -25,6 +25,7 @@ app-chat .user-card__body {
     aspect-ratio: 16/9 !important;
     left: unset !important;
     top: unset !important;
+    width: unset !important;
 }
 
 /* 1 video: full width */

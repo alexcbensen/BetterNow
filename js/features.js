@@ -570,6 +570,21 @@ function applyGridView() {
     }
 }
 
+// Observer to remove is-small class in grid view (prevents avatar shrinking)
+const audioSmallObserver = new MutationObserver((mutations) => {
+    if (!document.body.classList.contains('grid-view-enabled')) return;
+
+    for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+            const el = mutation.target;
+            if (el.classList.contains('audio-animation-wrapper') && el.classList.contains('is-small')) {
+                el.classList.remove('is-small');
+            }
+        }
+    }
+});
+audioSmallObserver.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
 function fixVideoFit() {
     const isGridView = document.body.classList.contains('grid-view-enabled');
     const allVideos = document.querySelectorAll('.video-player video');
