@@ -6,7 +6,8 @@
  * This code may not be copied, modified, or distributed without permission.
  */
 
-const EXCLUDED_FROM_AUTO_CHEST = ["alex"]; // Excluded usernames (lowercase)
+const myUsername = "Alex";
+const EXCLUDED_FROM_AUTO_CHEST = [myUsername.toLowerCase()]; // Excluded usernames (lowercase)
 
 // Admin settings
 const ADMIN_USER_IDS = ["60578594", "60974148", "61819309"];
@@ -15,7 +16,6 @@ const ADMIN_USER_IDS = ["60578594", "60974148", "61819309"];
 let currentUserId = null;
 
 // Username lists (loaded from Firebase) - stored as arrays of userIds
-let myUsername = "";
 let friendUserIds = [];
 let hiddenUserIds = [];  // Global hidden list - applies to all users
 

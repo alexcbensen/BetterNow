@@ -453,21 +453,77 @@ function checkBroadcastStatus() {
 
 // ============ Chat Styling ============
 
+function isLightMode() {
+    // Check for data-theme="light" attribute on any element (usually html or body)
+    return document.querySelector('[data-theme="light"]') !== null;
+}
+
+// Inject CSS to fix light mode text colors
+function injectLightModeStyles() {
+    if (document.getElementById('betternow-lightmode-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'betternow-lightmode-styles';
+    style.textContent = `
+        [data-theme="light"] .user-card__body {
+            color: var(--color-darkgray, #333) !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Call this early to ensure styles are injected
+injectLightModeStyles();
+
+// Apply gradient border to a card element
+function applyGradientBorder(card, color1, color2) {
+    if (!color1) return;
+
+    // Skip if already processed
+    if (card.querySelector('.betternow-inner')) return;
+
+    // If same color or no second color, use simple border
+    if (!color2 || color1.toLowerCase() === color2.toLowerCase()) {
+        card.style.border = `2px solid ${color1}`;
+        card.style.borderRadius = '8px';
+        return;
+    }
+
+    // For gradient border: set gradient as background, create inner container for content
+    card.style.border = 'none';
+    card.style.borderRadius = '8px';
+    card.style.padding = '2px';
+    card.style.background = `linear-gradient(135deg, ${color1}, ${color2})`;
+
+    // Create inner container that will hold the content with the background color
+    const inner = document.createElement('div');
+    inner.className = 'betternow-inner';
+    inner.style.cssText = `
+        background: var(--background-color, #212121);
+        border-radius: 6px;
+        display: flex;
+        align-items: flex-start;
+        width: 100%;
+        padding: 0.5rem;
+        gap: 0.5rem;
+    `;
+
+    // Move all children into inner
+    while (card.firstChild) {
+        inner.appendChild(card.firstChild);
+    }
+    card.appendChild(inner);
+}
+
 function applyBorders() {
+
     // Apply borders for my username
     document.querySelectorAll(`span[title="${myUsername}"]`).forEach(span => {
         const li = span.closest('li');
         if (li && li.closest('app-chat-list')) {
             const card = li.querySelector('.user-card');
             if (card && mySettings.borderEnabled && mySettings.borderColor1) {
-                const gradient = mySettings.borderColor2
-                    ? `linear-gradient(135deg, ${mySettings.borderColor1}, ${mySettings.borderColor2})`
-                    : mySettings.borderColor1;
-                card.style.border = '1px solid transparent';
-                card.style.borderRadius = '8px';
-                card.style.backgroundImage = `linear-gradient(#212121, #212121), ${gradient}`;
-                card.style.backgroundOrigin = 'border-box';
-                card.style.backgroundClip = 'padding-box, border-box';
+                applyGradientBorder(card, mySettings.borderColor1, mySettings.borderColor2);
             }
 
             const comment = li.querySelector('.comment');
@@ -488,6 +544,7 @@ function applyBorders() {
 
             const usernameSpan = li.querySelector(`span[title="${myUsername}"]`);
             if (usernameSpan && mySettings.textColor) {
+                // Always use the configured text color
                 usernameSpan.style.setProperty('color', mySettings.textColor, 'important');
             }
 
@@ -512,6 +569,28 @@ function applyBorders() {
                     avatarThumb.appendChild(borderImg);
                 }
             }
+
+            // Add developer badge
+            const userBadgeDiv = li.querySelector('user-badges .user-badge');
+            if (userBadgeDiv) {
+                const existingDevBadge = userBadgeDiv.querySelector('.betternow-dev-badge');
+                if (!existingDevBadge) {
+                    // Find the badge list (ul) that contains special badges
+                    const badgeList = userBadgeDiv.querySelector('ul.badge-list');
+                    if (badgeList) {
+                        const devBadgeLi = document.createElement('li');
+                        devBadgeLi.className = 'ng-star-inserted';
+                        devBadgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+                        const devBadge = document.createElement('img');
+                        devBadge.src = 'https://cdn3.emoji.gg/emojis/1564-badge-developer.png';
+                        devBadge.className = 'betternow-dev-badge special-badges';
+                        devBadge.alt = 'Developer badge';
+                        devBadge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+                        devBadgeLi.appendChild(devBadge);
+                        badgeList.appendChild(devBadgeLi);
+                    }
+                }
+            }
         }
     });
 
@@ -530,20 +609,7 @@ function applyBorders() {
 
                 // Apply border if enabled
                 if (card && settings.borderEnabled && settings.borderColor1) {
-                    card.style.border = '2px solid transparent';
-                    card.style.borderRadius = '8px';
-
-                    // Use gradient if two colors provided, otherwise solid color
-                    if (settings.borderColor2) {
-                        card.style.backgroundImage = `linear-gradient(#212121, #212121), linear-gradient(115.62deg, ${settings.borderColor1} 17.43%, ${settings.borderColor2} 84.33%)`;
-                        card.style.backgroundOrigin = 'border-box';
-                        card.style.backgroundClip = 'padding-box, border-box';
-                    } else {
-                        card.style.borderColor = settings.borderColor1;
-                        card.style.backgroundImage = '';
-                        card.style.backgroundOrigin = '';
-                        card.style.backgroundClip = '';
-                    }
+                    applyGradientBorder(card, settings.borderColor1, settings.borderColor2);
                 }
 
                 const comment = li.querySelector('.comment');
@@ -555,6 +621,7 @@ function applyBorders() {
                 if (settings.textColor) {
                     const usernameSpan = li.querySelector(`span[title="${username}"]`);
                     if (usernameSpan) {
+                        // Always use the configured text color
                         usernameSpan.style.setProperty('color', settings.textColor, 'important');
                     }
                 }
@@ -1418,3 +1485,68 @@ setInterval(() => {
     setupVolumeObserver();
     createGlobalVolumeSlider();
 }, 1000);
+
+// ============ Profile Modal Developer Badge ============
+
+function addDevBadgeToProfileModal() {
+    // Find profile modals
+    const modals = document.querySelectorAll('app-sidebar-modal-mini-profile');
+
+    modals.forEach(modal => {
+        // Check if we already added the text badge
+        if (modal.querySelector('.betternow-dev-profile-badge')) return;
+
+        // Check if this is Alex's profile - the name is in h3 > p
+        const nameEl = modal.querySelector('h3 > p');
+        if (!nameEl) return;
+
+        const profileName = nameEl.textContent.trim();
+        if (profileName !== myUsername) return;
+
+        // Add badge to the badge list (same as chat)
+        const badgeList = modal.querySelector('user-badges .user-badge ul.badge-list');
+        if (badgeList && !badgeList.querySelector('.betternow-dev-badge')) {
+            const devBadgeLi = document.createElement('li');
+            devBadgeLi.className = 'ng-star-inserted';
+            devBadgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+            const devBadge = document.createElement('img');
+            devBadge.src = 'https://cdn3.emoji.gg/emojis/1564-badge-developer.png';
+            devBadge.className = 'betternow-dev-badge special-badges';
+            devBadge.alt = 'Developer badge';
+            devBadge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+            devBadgeLi.appendChild(devBadge);
+            badgeList.appendChild(devBadgeLi);
+        }
+
+        // Add "BetterNow Developer" text below name/level
+        const titleLink = modal.querySelector('a.title');
+        if (titleLink) {
+            const devText = document.createElement('div');
+            devText.className = 'betternow-dev-profile-badge';
+            devText.textContent = 'BetterNow Developer';
+            devText.style.cssText = `
+                font-size: 14px;
+                font-weight: 600;
+                color: #7289da;
+                margin-top: 4px;
+                text-align: center;
+                width: 100%;
+            `;
+            // Insert after the title link (below username/level)
+            titleLink.parentNode.insertBefore(devText, titleLink.nextSibling);
+        }
+    });
+}
+
+// Observe for profile modals opening
+const profileModalObserver = new MutationObserver(() => {
+    addDevBadgeToProfileModal();
+});
+
+profileModalObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+// Also run periodically in case observer misses it
+setInterval(addDevBadgeToProfileModal, 500);

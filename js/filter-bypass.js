@@ -54,12 +54,9 @@
     window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'BETTERNOW_FILTER_BYPASS') {
             window.__betternowFilterBypass = event.data.enabled;
-            console.log('[BetterNow] Filter bypass:', event.data.enabled ? 'enabled' : 'disabled');
         }
     });
 
     // Set initial state from localStorage
     window.__betternowFilterBypass = localStorage.getItem('betternow_chatFilterBypass') === 'true';
-
-    console.log('[BetterNow] Filter bypass loaded, enabled:', window.__betternowFilterBypass);
 })();

@@ -85,9 +85,6 @@ function applyFirebaseSettings() {
     if (!firebaseSettings) return;
 
     // Update global variables from firebase settings
-    if (firebaseSettings.myUsername) {
-        myUsername = firebaseSettings.myUsername;
-    }
     if (firebaseSettings.friendUserIds) {
         friendUserIds = firebaseSettings.friendUserIds;
     }
