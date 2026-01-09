@@ -1132,6 +1132,7 @@ function applyEarlyVolumes() {
         if (!videoEl || videoEl.dataset.volumeApplied) return;
 
         // Skip the user's own tile (shows "You") to prevent echo
+        if (username === 'You') {
             videoEl.muted = true;
             videoEl.dataset.volumeApplied = 'true';
             return;
