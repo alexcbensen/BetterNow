@@ -40,22 +40,66 @@ app-chat .user-card__body {
     height: 100% !important;
 }
 
-/* Block clicks on video area but allow toolbar */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video > .main-video-wrapper {
-    pointer-events: none !important;
-}
-
-.grid-view-enabled app-channel .fullscreen-wrapper > .video app-toolbar-overlay,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video app-toolbar-overlay *,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .thumb-wrapper,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .thumb-wrapper *,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .username,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .username * {
-    pointer-events: auto !important;
-}
-
 /* Rounded corners for all videos */
 .video-player .video {
     border-radius: 12px;
     overflow: hidden;
+}
+
+/* Hide native volume control on guest video tiles (not main broadcaster) */
+.fullscreen-wrapper > .video app-volume {
+    display: none !important;
+}
+
+/* Balance top toolbar so middle stays centered when we add our volume slider */
+app-top-toolbar .toolbar {
+    display: flex;
+    justify-content: space-between;
+}
+
+app-top-toolbar .toolbar__left,
+app-top-toolbar .toolbar__right {
+    flex: 1;
+}
+
+app-top-toolbar .toolbar__middle {
+    flex: 0 0 auto;
+}
+
+app-top-toolbar .toolbar__right {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Volume slider styles for guest videos */
+.betternow-volume-slider .slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 60px;
+    height: 0.3rem;
+    background: var(--color-lightgray, #d3d3d3);
+    border-radius: 2rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.betternow-volume-slider .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: .8rem;
+    height: .8rem;
+    border-radius: 50%;
+    background: var(--color-primary-green, #08d687);
+    cursor: pointer;
+}
+
+.betternow-volume-slider .slider::-moz-range-thumb {
+    -moz-appearance: none;
+    appearance: none;
+    width: .8rem;
+    height: .8rem;
+    border-radius: 50%;
+    background: var(--color-primary-green, #08d687);
+    cursor: pointer;
+    border: none;
 }
