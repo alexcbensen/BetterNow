@@ -45,10 +45,8 @@ setTimeout(applyBorders, 3000);
 
 // ============ Intervals ============
 
-setInterval(createGridToggle, 1000);
-setInterval(applyGridView, 1000);
-setInterval(hideCarouselBroadcasters, 200);
-setInterval(checkBroadcastStatus, 1000);
+// Only keep detectCurrentUser on interval since it requires API call
+// and doesn't have a DOM element to observe
 
 // ============ Observers ============
 
@@ -95,3 +93,60 @@ const popoverObserver = new MutationObserver(() => {
     createAdminPanelEntry();
 });
 popoverObserver.observe(document.body, { childList: true, subtree: true });
+
+// Watch for grid toggle button container and video count changes
+const gridObserver = new MutationObserver((mutations) => {
+    // Check if toolbar or video tiles changed
+    const shouldUpdate = mutations.some(mutation => {
+        if (mutation.type === 'childList') {
+            const target = mutation.target;
+            return target.matches?.('.top-button-wrapper, .fullscreen-wrapper') ||
+                target.closest?.('.top-button-wrapper, .fullscreen-wrapper') ||
+                Array.from(mutation.addedNodes).some(node =>
+                        node.nodeType === 1 && (
+                            node.matches?.('.top-button-wrapper, .fullscreen-wrapper, .video') ||
+                            node.querySelector?.('.top-button-wrapper, .fullscreen-wrapper, .video')
+                        )
+                ) ||
+                Array.from(mutation.removedNodes).some(node =>
+                    node.nodeType === 1 && node.matches?.('.video')
+                );
+        }
+        return false;
+    });
+
+    if (shouldUpdate) {
+        createGridToggle();
+        applyGridView();
+    }
+});
+gridObserver.observe(document.body, { childList: true, subtree: true });
+
+// Run once on load
+createGridToggle();
+applyGridView();
+
+// Watch for broadcast status changes (app-channel appearing/disappearing)
+const broadcastObserver = new MutationObserver((mutations) => {
+    const shouldCheck = mutations.some(mutation => {
+        if (mutation.type === 'childList') {
+            return Array.from(mutation.addedNodes).some(node =>
+                    node.nodeType === 1 && (
+                        node.matches?.('app-channel, .broadcast-ended') ||
+                        node.querySelector?.('app-channel, .broadcast-ended')
+                    )
+            ) || Array.from(mutation.removedNodes).some(node =>
+                node.nodeType === 1 && node.matches?.('app-channel')
+            );
+        }
+        return false;
+    });
+
+    if (shouldCheck) {
+        checkBroadcastStatus();
+    }
+});
+broadcastObserver.observe(document.body, { childList: true, subtree: true });
+
+// Run once on load
+checkBroadcastStatus();

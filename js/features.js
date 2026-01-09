@@ -526,12 +526,24 @@ function observeChat() {
 
 // ============ Grid View ============
 
-function createGridToggle() {
-    if (document.getElementById('grid-toggle-btn')) return;
+function getVideoCount() {
+    // Only count video tiles that have an active video or audio stream
+    return document.querySelectorAll('.fullscreen-wrapper > .video:has(video.is-active), .fullscreen-wrapper > .video:has(.audio.is-active)').length;
+}
 
+function createGridToggle() {
     const buttonWrapper = document.querySelector('.top-button-wrapper');
     if (!buttonWrapper) return;
 
+    const existingBtn = document.getElementById('grid-toggle-btn');
+
+    // Update grid view state based on video count
+    applyGridView();
+
+    // If button already exists, nothing more to do
+    if (existingBtn) return;
+
+    // Create the toggle button
     const toggleBtn = document.createElement('button');
     toggleBtn.id = 'grid-toggle-btn';
     toggleBtn.innerHTML = '⊞';
@@ -563,7 +575,10 @@ function createGridToggle() {
 }
 
 function applyGridView() {
-    if (gridViewEnabled) {
+    const videoCount = getVideoCount();
+
+    // Only apply grid view if enabled AND 2+ videos
+    if (gridViewEnabled && videoCount >= 2) {
         document.body.classList.add('grid-view-enabled');
     } else {
         document.body.classList.remove('grid-view-enabled');
