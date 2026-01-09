@@ -76,10 +76,11 @@ videoObserver.observe(document.body, { childList: true, subtree: true, attribute
 // Run once on load
 fixVideoFit();
 
-// Watch for DOM changes to hide broadcasters
+// Watch for DOM changes to hide broadcasters and notifications
 const broadcasterObserver = new MutationObserver(() => {
     hideBroadcasters();
     hideCarouselBroadcasters();
+    hideNotifications();
 });
 broadcasterObserver.observe(document.body, { childList: true, subtree: true });
 

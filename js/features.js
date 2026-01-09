@@ -578,25 +578,59 @@ function fixVideoFit() {
         const videoTile = video.closest('.video');
 
         if (video.classList.contains('is-screenshare')) {
+            // Screenshare: show full content
             video.style.objectFit = 'contain';
-        } else if (isGridView) {
-            // In grid view: show full frame and adjust container
-            video.style.objectFit = 'contain';
-            if (videoTile && video.videoWidth && video.videoHeight) {
-                const aspectRatio = video.videoWidth / video.videoHeight;
-                videoTile.style.aspectRatio = aspectRatio.toString();
-            }
         } else {
-            // Normal view: use cover (YouNow default behavior)
+            // Regular video: fill the frame (may crop edges)
             video.style.objectFit = 'cover';
-            if (videoTile) {
-                videoTile.style.aspectRatio = '';
-            }
+        }
+
+        // Clear any custom aspect ratio
+        if (videoTile) {
+            videoTile.style.aspectRatio = '';
         }
     });
 }
 
 // ============ Carousel / Hidden Broadcasters ============
+
+function hideNotifications() {
+    // Hide notifications from hidden users
+    hiddenUserIds.forEach(odiskd => {
+        // Check if current user is an exception for this specific hidden broadcaster
+        const exceptions = hiddenExceptions[odiskd] || {};
+        if (currentUserId && exceptions[currentUserId]) {
+            return;
+        }
+
+        const userData = hiddenUsers[odiskd] || {};
+        const username = userData.username;
+
+        if (username) {
+            // Find notifications that mention this username
+            document.querySelectorAll('.notifications-list app-notification').forEach(notification => {
+                const usernameEl = notification.querySelector('.user-card__right b');
+                if (usernameEl && usernameEl.textContent.trim().toLowerCase() === username.toLowerCase()) {
+                    notification.style.display = 'none';
+                }
+
+                // Also hide notifications that mention the hidden user in the text
+                const textEl = notification.querySelector('.user-card__right');
+                if (textEl && textEl.textContent.toLowerCase().includes(username.toLowerCase())) {
+                    notification.style.display = 'none';
+                }
+            });
+        }
+
+        // Also hide by avatar URL containing userId
+        document.querySelectorAll(`.notifications-list app-notification img.avatar[src*="/${odiskd}/"]`).forEach(img => {
+            const notification = img.closest('app-notification');
+            if (notification) {
+                notification.style.display = 'none';
+            }
+        });
+    });
+}
 
 function hideBroadcasters() {
     hiddenUserIds.forEach(odiskd => {
@@ -631,6 +665,9 @@ function hideBroadcasters() {
             }
         });
     });
+
+    // Also hide notifications
+    hideNotifications();
 }
 
 function setupCarouselDirectionTracking() {
