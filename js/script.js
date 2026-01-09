@@ -150,3 +150,6 @@ broadcastObserver.observe(document.body, { childList: true, subtree: true });
 
 // Run once on load
 checkBroadcastStatus();
+
+// Also run after a short delay to catch late-loading elements
+setTimeout(checkBroadcastStatus, 1000);
