@@ -61,14 +61,12 @@ function createChestControls() {
     // Don't show if user doesn't have a chest
     if (!document.querySelector('.chest-button')) return;
 
-    const toolbar = document.querySelector('.toolbar__left');
-    if (!toolbar) return;
+    // Get the BetterNow toolbar's left section
+    const betterNowToolbar = document.getElementById('betternow-toolbar');
+    if (!betterNowToolbar) return;
 
-    // Find the Screenshare button entry
-    const screenshareEntry = Array.from(toolbar.querySelectorAll('.toolbar__entry')).find(entry => {
-        const btn = entry.querySelector('button');
-        return btn && btn.textContent.includes('Screenshare');
-    });
+    const leftSection = betterNowToolbar.querySelector('.betternow-toolbar__left');
+    if (!leftSection) return;
 
     // Add CSS to hide number input arrows
     if (!document.getElementById('chest-input-styles')) {
@@ -89,82 +87,77 @@ function createChestControls() {
 
     const controlsDiv = document.createElement('div');
     controlsDiv.id = 'auto-chest-controls';
-    controlsDiv.className = 'toolbar__entry';
+    controlsDiv.style.cssText = 'display: flex; align-items: center; gap: 8px;';
     controlsDiv.innerHTML = `
-        <div class="toolbar__content" style="display: flex; align-items: center; gap: 8px;">
-            <button id="auto-chest-toggle" title="Auto Chest Drop" style="
+        <button id="auto-chest-toggle" title="Auto Chest Drop" style="
+            background: var(--color-mediumgray, #888);
+            border: none;
+            color: var(--color-white, #fff);
+            padding: 0.35em 0.5em 0.2em 0.68em;
+            border-radius: 0.4em;
+            font-size: 0.7em;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-family: inherit;
+        ">AUTO CHEST</button>
+        <div id="chest-threshold-controls" style="display: none; align-items: center; gap: 8px;">
+            <input id="chest-threshold-input" type="text" value="${autoChestThreshold ? autoChestThreshold.toLocaleString() : ''}" placeholder="Likes" style="
+                width: 70px;
                 background: var(--background-color, #212121);
-                border: 1px solid ${autoChestEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--main-border-color, #4e4e4e)'};
+                border: 1px solid var(--main-border-color, #4e4e4e);
                 border-radius: 2rem;
                 padding: .1rem .75rem;
-                color: ${autoChestEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-text, white)'};
+                color: var(--color-text, white);
+                font-size: .8rem;
+                font-weight: 600;
+                font-family: inherit;
+                text-align: center;
+                outline: none;
+            " title="Drop chest every X likes" />
+            <button id="chest-threshold-update" style="
+                background: var(--color-mediumgray, #888);
+                border: none;
+                border-radius: 2rem;
+                padding: .1rem .75rem 0 .79rem;
+                color: var(--color-white, #fff);
                 font-size: .8rem;
                 font-weight: 600;
                 font-family: inherit;
                 cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 4px;
                 outline: none;
-            ">
-                <span>🎁</span>
-                <span>Auto</span>
-            </button>
-            <div id="chest-threshold-controls" style="display: ${autoChestEnabled ? 'flex' : 'none'}; align-items: center; gap: 8px;">
-                <input id="chest-threshold-input" type="text" value="${autoChestThreshold ? autoChestThreshold.toLocaleString() : ''}" placeholder="Likes" style="
-                    width: 70px;
-                    background: var(--background-color, #212121);
-                    border: 1px solid var(--main-border-color, #4e4e4e);
-                    border-radius: 2rem;
-                    padding: .1rem .75rem;
-                    color: var(--color-text, white);
-                    font-size: .8rem;
-                    font-weight: 600;
-                    font-family: inherit;
-                    text-align: center;
-                    outline: none;
-                " title="Drop chest every X likes" />
-                <button id="chest-threshold-update" style="
-                    background: var(--background-color, #212121);
-                    border: 1px solid var(--main-border-color, #4e4e4e);
-                    border-radius: 2rem;
-                    padding: .1rem .75rem;
-                    color: var(--color-text, white);
-                    font-size: .8rem;
-                    font-weight: 600;
-                    font-family: inherit;
-                    cursor: pointer;
-                    outline: none;
-                ">Set</button>
-                <span id="chest-update-status" style="
-                    color: var(--color-primary-green, #08d687);
-                    font-size: .75rem;
-                    font-weight: 600;
-                "></span>
-            </div>
+                transition: background 0.15s;
+            ">Set</button>
+            <span id="chest-update-status" style="
+                color: var(--color-primary-green, #08d687);
+                font-size: .75rem;
+                font-weight: 600;
+            "></span>
         </div>
     `;
 
-    // Insert after Screenshare button, or at end of toolbar__left
-    if (screenshareEntry && screenshareEntry.nextSibling) {
-        toolbar.insertBefore(controlsDiv, screenshareEntry.nextSibling);
-    } else {
-        toolbar.appendChild(controlsDiv);
-    }
+    leftSection.appendChild(controlsDiv);
 
     // Toggle button
     const toggleBtn = document.getElementById('auto-chest-toggle');
     const thresholdControls = document.getElementById('chest-threshold-controls');
 
+    // Update button state based on current autoChestEnabled value
+    if (autoChestEnabled) {
+        toggleBtn.style.background = 'var(--color-primary-green, #08d687)';
+        thresholdControls.style.display = 'flex';
+    }
+
     toggleBtn.addEventListener('click', () => {
         autoChestEnabled = !autoChestEnabled;
-        toggleBtn.style.borderColor = autoChestEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--main-border-color, #4e4e4e)';
-        toggleBtn.style.color = autoChestEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-text, white)';
-        thresholdControls.style.display = autoChestEnabled ? 'flex' : 'none';
-
         if (autoChestEnabled) {
+            toggleBtn.style.background = 'var(--color-primary-green, #08d687)';
+            thresholdControls.style.display = 'flex';
             startChestMonitoring();
         } else {
+            toggleBtn.style.background = 'var(--color-mediumgray, #888)';
+            thresholdControls.style.display = 'none';
             stopChestMonitoring();
         }
 
@@ -195,6 +188,12 @@ function createChestControls() {
 
             // Reformat with commas
             thresholdInput.value = value.toLocaleString();
+
+            // Flash green then back to grey
+            updateBtn.style.background = 'var(--color-primary-green, #08d687)';
+            setTimeout(() => {
+                updateBtn.style.background = 'var(--color-mediumgray, #888)';
+            }, 300);
 
             // Show status
             updateStatus.textContent = 'Set!';
@@ -536,46 +535,9 @@ function getVideoCount() {
 }
 
 function createGridToggle() {
-    const buttonWrapper = document.querySelector('.top-button-wrapper');
-    if (!buttonWrapper) return;
-
-    const existingBtn = document.getElementById('grid-toggle-btn');
-
-    // Update grid view state based on video count
+    // Grid toggle is now in the BetterNow toolbar
+    // This function just applies the grid view state
     applyGridView();
-
-    // If button already exists, nothing more to do
-    if (existingBtn) return;
-
-    // Create the toggle button
-    const toggleBtn = document.createElement('button');
-    toggleBtn.id = 'grid-toggle-btn';
-    toggleBtn.innerHTML = '⊞';
-    toggleBtn.title = 'Toggle Grid View';
-    toggleBtn.style.cssText = `
-        background: ${gridViewEnabled ? '#08d687' : 'transparent'};
-        border: 1px solid #555;
-        color: white;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 24px;
-        display: inline-block;
-        text-align: center;
-        line-height: 34px;
-        padding: 0;
-        margin-right: 10px;
-        font-family: proxima-nova, sans-serif;
-    `;
-
-    toggleBtn.onclick = () => {
-        gridViewEnabled = !gridViewEnabled;
-        toggleBtn.style.background = gridViewEnabled ? '#08d687' : 'transparent';
-        applyGridView();
-    };
-
-    buttonWrapper.insertBefore(toggleBtn, buttonWrapper.firstChild);
 }
 
 function applyGridView() {
@@ -589,18 +551,9 @@ function applyGridView() {
     }
 }
 
-// Observer to remove is-small class in grid view (prevents avatar shrinking)
+// Observer placeholder for future grid view adjustments
 const audioSmallObserver = new MutationObserver((mutations) => {
-    if (!document.body.classList.contains('grid-view-enabled')) return;
-
-    for (const mutation of mutations) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-            const el = mutation.target;
-            if (el.classList.contains('audio-animation-wrapper') && el.classList.contains('is-small')) {
-                el.classList.remove('is-small');
-            }
-        }
-    }
+    // Currently disabled
 });
 audioSmallObserver.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
@@ -792,6 +745,8 @@ function getGuestUsername(tile) {
 
 // ============ BetterNow Toolbar ============
 
+let headerCssEnabled = true;
+
 function createBetterNowToolbar() {
     // Check if toolbar already exists
     if (document.getElementById('betternow-toolbar')) return document.getElementById('betternow-toolbar');
@@ -807,7 +762,7 @@ function createBetterNowToolbar() {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0.5rem 1rem;
+        padding: 8px 12px;
         border-bottom: 1px solid var(--main-border-color, #4e4e4e);
     `;
 
@@ -824,11 +779,69 @@ function createBetterNowToolbar() {
     rightSection.className = 'betternow-toolbar__right';
     rightSection.style.cssText = 'display: flex; align-items: center; gap: 12px; flex: 1; justify-content: flex-end;';
 
-    // Add BetterNow branding to middle
-    const branding = document.createElement('span');
-    branding.textContent = 'BetterNow';
-    branding.style.cssText = 'font-size: 0.8rem; font-weight: 600; color: #08d687; letter-spacing: 0.5px;';
-    middleSection.appendChild(branding);
+    // Add CSS toggle button to left section for testing
+    const cssToggle = document.createElement('button');
+    cssToggle.id = 'betternow-css-toggle';
+    cssToggle.textContent = 'STICKY HEADER';
+    cssToggle.style.cssText = `
+        background: var(--color-mediumgray, #888);
+        border: none;
+        color: var(--color-white, #fff);
+        padding: 0.35em 0.5em 0.2em 0.68em;
+        border-radius: 0.4em;
+        font-size: 0.7em;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        cursor: pointer;
+        font-family: inherit;
+    `;
+    cssToggle.onclick = () => {
+        headerCssEnabled = !headerCssEnabled;
+        const header = document.querySelector('app-channel .header');
+        if (header) {
+            if (headerCssEnabled) {
+                // BetterNow style: scrolls with page, no border
+                header.style.setProperty('position', 'relative', 'important');
+                header.style.setProperty('top', '0', 'important');
+                header.style.setProperty('border-bottom', 'none', 'important');
+                header.style.setProperty('border-color', 'transparent', 'important');
+                cssToggle.style.background = 'var(--color-mediumgray, #888)';
+            } else {
+                // Default YouNow style: sticky header with border
+                header.style.setProperty('position', 'sticky', 'important');
+                header.style.setProperty('top', 'var(--topbar-height)', 'important');
+                header.style.setProperty('border-bottom', 'none', 'important');
+                header.style.setProperty('border-color', 'transparent', 'important');
+                cssToggle.style.background = 'var(--color-primary-green, #08d687)';
+            }
+        }
+    };
+    leftSection.appendChild(cssToggle);
+
+    // Add Grid View toggle button
+    const gridToggle = document.createElement('button');
+    gridToggle.id = 'grid-toggle-btn';
+    gridToggle.textContent = 'GRID VIEW';
+    gridToggle.style.cssText = `
+        background: ${gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        border: none;
+        color: var(--color-white, #fff);
+        padding: 0.35em 0.5em 0.2em 0.68em;
+        border-radius: 0.4em;
+        font-size: 0.7em;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        cursor: pointer;
+        font-family: inherit;
+    `;
+    gridToggle.onclick = () => {
+        gridViewEnabled = !gridViewEnabled;
+        gridToggle.style.background = gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
+        applyGridView();
+    };
+    leftSection.appendChild(gridToggle);
 
     toolbar.appendChild(leftSection);
     toolbar.appendChild(middleSection);

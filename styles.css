@@ -2,6 +2,13 @@ app-chat .user-card__body {
     color: white !important;
 }
 
+/* Make header scroll with page instead of staying fixed */
+app-channel .header {
+    position: relative !important;
+    top: 0 !important;
+    border-bottom: none !important;
+}
+
 /* Grid view styles - only on broadcast pages */
 .grid-view-enabled app-channel .video-player {
     height: auto !important;
@@ -57,18 +64,43 @@ app-chat .user-card__body {
 }
 
 /* When screenshare is active: position camera feed as small PiP overlay */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper {
+/* Target main-video-wrapper with is-headshot (camera off) inside screenshare tiles */
+/* Use high specificity to override all states */
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-small,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot.is-small {
     position: absolute !important;
-    bottom: 10px !important;
-    right: 10px !important;
+    bottom: -10px !important;
+    right: 5px !important;
     top: unset !important;
-    width: 30% !important;
-    min-width: 100px !important;
-    max-width: 180px !important;
-    height: auto !important;
+    left: unset !important;
+    width: 100px !important;
+    height: 100px !important;
+    max-height: 100px !important;
     z-index: 9 !important;
     border-radius: 8px !important;
     overflow: hidden !important;
+}
+
+/* Force all audio-animation-wrappers to consistent size in grid view */
+/* The is-small class actually makes them LARGER (47.5px), while selected (no is-small) is smaller (40px) */
+/* We want all to match the is-small size */
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .audio-animation-wrapper:not(.is-small):not(.is-mini) {
+    width: var(--stream-user-thumb-medium) !important;
+    height: auto !important;
+    aspect-ratio: 1 !important;
+}
+
+/* Force screenshare PiP avatar to consistent size regardless of is-small/is-mini */
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-small,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-mini {
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    aspect-ratio: 1 / 1 !important;
 }
 
 /* Ensure toolbar stays above PiP webcam in grid view */
@@ -85,6 +117,11 @@ app-chat .user-card__body {
 /* Hide native volume control on guest video tiles (not main broadcaster) */
 .fullscreen-wrapper > .video app-volume {
     display: none !important;
+}
+
+/* Add padding to YouNow toolbar when BetterNow toolbar exists above it */
+#betternow-toolbar + app-top-toolbar .toolbar {
+    padding-top: 16px !important;
 }
 
 /* BetterNow toolbar slider styles */
