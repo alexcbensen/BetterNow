@@ -484,7 +484,7 @@ function applyGradientBorder(card, color1, color2) {
 
     // If same color or no second color, use simple border
     if (!color2 || color1.toLowerCase() === color2.toLowerCase()) {
-        card.style.border = `2px solid ${color1}`;
+        card.style.border = `1px solid ${color1}`;
         card.style.borderRadius = '8px';
         return;
     }
@@ -492,7 +492,7 @@ function applyGradientBorder(card, color1, color2) {
     // For gradient border: set gradient as background, create inner container for content
     card.style.border = 'none';
     card.style.borderRadius = '8px';
-    card.style.padding = '2px';
+    card.style.padding = '1px';
     card.style.background = `linear-gradient(135deg, ${color1}, ${color2})`;
 
     // Create inner container that will hold the content with the background color
@@ -500,7 +500,7 @@ function applyGradientBorder(card, color1, color2) {
     inner.className = 'betternow-inner';
     inner.style.cssText = `
         background: var(--background-color, #212121);
-        border-radius: 6px;
+        border-radius: 7px;
         display: flex;
         align-items: flex-start;
         width: 100%;
@@ -1555,4 +1555,4 @@ profileModalObserver.observe(document.body, {
 });
 
 // Also run periodically in case observer misses it
-setInterval(addDevBadgeToProfileModal, 500);    
+setInterval(addDevBadgeToProfileModal, 500);
