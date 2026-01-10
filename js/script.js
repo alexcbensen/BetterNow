@@ -126,7 +126,26 @@ gridObserver.observe(document.body, { childList: true, subtree: true });
 createGridToggle();
 applyGridView();
 
+// Watch for broadcast status changes (END button appearing/disappearing)
+const broadcastObserver = new MutationObserver((mutations) => {
+    const shouldCheck = mutations.some(mutation => {
+        if (mutation.type === 'childList') {
+            return Array.from(mutation.addedNodes).some(node =>
+                node.nodeType === 1 && (
+                    node.matches?.('.toolbar, .button--red, .chest-button') ||
+                    node.querySelector?.('.toolbar, .button--red, .chest-button')
+                )
+            ) || Array.from(mutation.removedNodes).some(node =>
+                node.nodeType === 1 && (
+                    node.matches?.('.button--red, .chest-button') ||
+                    node.querySelector?.('.button--red, .chest-button')
+                )
+            );
+        }
+        return false;
+    });
 
+    if (shouldCheck) {
         setTimeout(checkBroadcastStatus, 500);
     }
 });

@@ -4,6 +4,44 @@
 let lastSkipTime = 0;
 let lastDirection = 'next';
 
+function hideNotifications() {
+    // Hide notifications from hidden users
+    hiddenUserIds.forEach(odiskd => {
+        // Check if current user is an exception for this specific hidden broadcaster
+        const exceptions = hiddenExceptions[odiskd] || {};
+        if (currentUserId && exceptions[currentUserId]) {
+            return;
+        }
+
+        const userData = hiddenUsers[odiskd] || {};
+        const username = userData.username;
+
+        if (username) {
+            // Find notifications that mention this username
+            document.querySelectorAll('.notifications-list app-notification').forEach(notification => {
+                const usernameEl = notification.querySelector('.user-card__right b');
+                if (usernameEl && usernameEl.textContent.trim().toLowerCase() === username.toLowerCase()) {
+                    notification.style.display = 'none';
+                }
+                
+                // Also hide notifications that mention the hidden user in the text
+                const textEl = notification.querySelector('.user-card__right');
+                if (textEl && textEl.textContent.toLowerCase().includes(username.toLowerCase())) {
+                    notification.style.display = 'none';
+                }
+            });
+        }
+
+        // Also hide by avatar URL containing userId
+        document.querySelectorAll(`.notifications-list app-notification img.avatar[src*="/${odiskd}/"]`).forEach(img => {
+            const notification = img.closest('app-notification');
+            if (notification) {
+                notification.style.display = 'none';
+            }
+        });
+    });
+}
+
 function hideBroadcasters() {
     hiddenUserIds.forEach(odiskd => {
         // Check if current user is an exception for this specific hidden broadcaster
