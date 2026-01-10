@@ -528,7 +528,10 @@ function applyBorders() {
 
             const comment = li.querySelector('.comment');
             if (comment) {
-                comment.className = 'comment ng-star-inserted';
+                // Preserve special classes like is-platinium, is-golden, broadcaster-mod, etc.
+                const specialClasses = ['is-platinium', 'is-golden', 'broadcaster-mod', 'is-five-red-crowns', 'is-broadcaster'];
+                const classesToKeep = specialClasses.filter(cls => comment.classList.contains(cls));
+                comment.className = 'comment ng-star-inserted ' + classesToKeep.join(' ');
             }
 
             const levelBadge = li.querySelector('app-user-level .user-level');
@@ -614,7 +617,10 @@ function applyBorders() {
 
                 const comment = li.querySelector('.comment');
                 if (comment) {
-                    comment.className = 'comment ng-star-inserted';
+                    // Preserve special classes like is-platinium, is-golden, broadcaster-mod, etc.
+                    const specialClasses = ['is-platinium', 'is-golden', 'broadcaster-mod', 'is-five-red-crowns', 'is-broadcaster'];
+                    const classesToKeep = specialClasses.filter(cls => comment.classList.contains(cls));
+                    comment.className = 'comment ng-star-inserted ' + classesToKeep.join(' ');
                 }
 
                 // Apply text color if set
@@ -1549,4 +1555,4 @@ profileModalObserver.observe(document.body, {
 });
 
 // Also run periodically in case observer misses it
-setInterval(addDevBadgeToProfileModal, 500);
+setInterval(addDevBadgeToProfileModal, 500);    
