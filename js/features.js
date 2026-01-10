@@ -8,7 +8,7 @@
 
 // Chat, grid view, carousel, and chest features
 
-let gridViewEnabled = false;
+let gridViewEnabled = localStorage.getItem('betternow-grid-view') === 'true';
 let lastSkipTime = 0;
 let lastDirection = 'next';
 let chestObserver = null;
@@ -881,7 +881,8 @@ function getGuestUsername(tile) {
 
 // ============ BetterNow Toolbar ============
 
-let headerCssEnabled = true;
+// headerCssEnabled = true means NON-sticky (BetterNow style), false means sticky (YouNow default)
+let headerCssEnabled = localStorage.getItem('betternow-sticky-header-disabled') !== 'false';
 
 function createBetterNowToolbar() {
     // Check if toolbar already exists
@@ -920,7 +921,7 @@ function createBetterNowToolbar() {
     cssToggle.id = 'betternow-css-toggle';
     cssToggle.textContent = 'STICKY HEADER';
     cssToggle.style.cssText = `
-        background: var(--color-mediumgray, #888);
+        background: ${headerCssEnabled ? 'var(--color-mediumgray, #888)' : 'var(--color-primary-green, #08d687)'};
         border: none;
         color: var(--color-white, #fff);
         padding: 0.35em 0.5em 0.2em 0.68em;
@@ -932,8 +933,24 @@ function createBetterNowToolbar() {
         cursor: pointer;
         font-family: inherit;
     `;
+
+    // Apply initial header state
+    const header = document.querySelector('app-channel .header');
+    if (header) {
+        if (headerCssEnabled) {
+            header.style.setProperty('position', 'relative', 'important');
+            header.style.setProperty('top', '0', 'important');
+        } else {
+            header.style.setProperty('position', 'sticky', 'important');
+            header.style.setProperty('top', 'var(--topbar-height)', 'important');
+        }
+        header.style.setProperty('border-bottom', 'none', 'important');
+        header.style.setProperty('border-color', 'transparent', 'important');
+    }
+
     cssToggle.onclick = () => {
         headerCssEnabled = !headerCssEnabled;
+        localStorage.setItem('betternow-sticky-header-disabled', headerCssEnabled.toString());
         const header = document.querySelector('app-channel .header');
         if (header) {
             if (headerCssEnabled) {
@@ -974,10 +991,14 @@ function createBetterNowToolbar() {
     `;
     gridToggle.onclick = () => {
         gridViewEnabled = !gridViewEnabled;
+        localStorage.setItem('betternow-grid-view', gridViewEnabled.toString());
         gridToggle.style.background = gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
         applyGridView();
     };
     leftSection.appendChild(gridToggle);
+
+    // Apply initial grid view state
+    applyGridView();
 
     toolbar.appendChild(leftSection);
     toolbar.appendChild(middleSection);
@@ -1183,10 +1204,10 @@ function applyGlobalMultiplier(multiplier) {
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
 
     videoTiles.forEach(tile => {
-        const videoEl = tile.querySelector('video');
+        const videoElements = tile.querySelectorAll('video');
         const username = getGuestUsername(tile);
 
-        if (!videoEl || !username) return;
+        if (videoElements.length === 0 || !username) return;
 
         // Get the individual saved volume (base volume)
         const baseVolume = guestVolumeStates.has(username) ? guestVolumeStates.get(username) : 100;
@@ -1194,8 +1215,11 @@ function applyGlobalMultiplier(multiplier) {
         // Apply multiplier to base volume
         const effectiveVolume = (baseVolume * multiplier) / 100;
 
-        videoEl.volume = effectiveVolume / 100;
-        videoEl.muted = effectiveVolume === 0;
+        // Apply to ALL videos in this tile
+        videoElements.forEach(v => {
+            v.volume = effectiveVolume / 100;
+            v.muted = effectiveVolume === 0;
+        });
     });
 }
 
@@ -1206,16 +1230,10 @@ function applyEarlyVolumes() {
 
     videoTiles.forEach(tile => {
         const username = getGuestUsername(tile);
-        const videoEl = tile.querySelector('video');
+        // Get ALL video elements in this tile
+        const videoElements = tile.querySelectorAll('video');
 
-        if (!videoEl || videoEl.dataset.volumeApplied) return;
-
-        // Skip the user's own tile (shows "You") to prevent echo
-        if (username === 'You') {
-            videoEl.muted = true;
-            videoEl.dataset.volumeApplied = 'true';
-            return;
-        }
+        if (videoElements.length === 0) return;
 
         // Get base volume (individual setting or default 100)
         const baseVolume = (username && guestVolumeStates.has(username))
@@ -1225,9 +1243,22 @@ function applyEarlyVolumes() {
         // Apply multiplier
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
 
-        videoEl.volume = effectiveVolume / 100;
-        videoEl.muted = effectiveVolume === 0;
-        videoEl.dataset.volumeApplied = 'true';
+        // Apply to each video that hasn't been processed yet
+        videoElements.forEach(v => {
+            // Skip if this specific video already has volume applied
+            if (v.dataset.volumeApplied) return;
+
+            // Skip the user's own tile (shows "You") to prevent echo
+            if (username === 'You') {
+                v.muted = true;
+                v.dataset.volumeApplied = 'true';
+                return;
+            }
+
+            v.volume = effectiveVolume / 100;
+            v.muted = effectiveVolume === 0;
+            v.dataset.volumeApplied = 'true';
+        });
     });
 }
 
@@ -1259,17 +1290,17 @@ function createVolumeSliders() {
         // Skip if already has volume slider
         if (tile.querySelector('.betternow-volume-slider')) return;
 
-        // Find the video element
-        const videoEl = tile.querySelector('video');
-        if (!videoEl) return;
+        // Find ALL video elements in this tile (there can be multiple with screenshare)
+        const videoElements = tile.querySelectorAll('video');
+        if (videoElements.length === 0) return;
 
         // Get username for this tile to track volume state
         const username = getGuestUsername(tile);
 
         // Skip the user's own tile (shows "You") to prevent echo
         if (username === 'You') {
-            // Keep own audio muted
-            videoEl.muted = true;
+            // Keep own audio muted on all videos
+            videoElements.forEach(v => v.muted = true);
             return;
         }
 
@@ -1286,10 +1317,12 @@ function createVolumeSliders() {
             baseVolume = guestVolumeStates.get(username);
         }
 
-        // Apply multiplier for actual video volume
+        // Apply multiplier for actual video volume to ALL videos in this tile
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
-        videoEl.volume = effectiveVolume / 100;
-        videoEl.muted = effectiveVolume === 0;
+        videoElements.forEach(videoEl => {
+            videoEl.volume = effectiveVolume / 100;
+            videoEl.muted = effectiveVolume === 0;
+        });
 
         // Create volume container matching YouNow's structure
         const volumeContainer = document.createElement('div');
@@ -1322,14 +1355,17 @@ function createVolumeSliders() {
         const volumeIcon = document.createElement('i');
         volumeIcon.className = 'ynicon ynicon-mute';
 
-        // Update video volume when slider changes
+        // Update video volume when slider changes - apply to ALL videos in tile
         slider.addEventListener('input', () => {
             const baseVolume = parseInt(slider.value);
             const globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
             const effectiveVolume = (baseVolume * globalMultiplier) / 100;
 
-            videoEl.volume = effectiveVolume / 100;
-            videoEl.muted = effectiveVolume === 0;
+            // Apply to all videos in this tile
+            tile.querySelectorAll('video').forEach(v => {
+                v.volume = effectiveVolume / 100;
+                v.muted = effectiveVolume === 0;
+            });
             updateVolumeIcon(volumeIcon, slider.value);
 
             // Save base volume state
@@ -1340,20 +1376,26 @@ function createVolumeSliders() {
             }
         });
 
-        // Toggle mute on icon click
+        // Toggle mute on icon click - apply to ALL videos in tile
         volumeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             const globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
+            const videos = tile.querySelectorAll('video');
+            const firstVideo = videos[0];
 
-            if (videoEl.muted || videoEl.volume === 0) {
+            if (firstVideo && (firstVideo.muted || firstVideo.volume === 0)) {
                 const baseVolume = 50;
                 const effectiveVolume = (baseVolume * globalMultiplier) / 100;
-                videoEl.muted = false;
-                videoEl.volume = effectiveVolume / 100;
+                videos.forEach(v => {
+                    v.muted = false;
+                    v.volume = effectiveVolume / 100;
+                });
                 slider.value = '50';
             } else {
-                videoEl.muted = true;
-                videoEl.volume = 0;
+                videos.forEach(v => {
+                    v.muted = true;
+                    v.volume = 0;
+                });
                 slider.value = '0';
             }
             updateVolumeIcon(volumeIcon, slider.value);
@@ -1387,8 +1429,9 @@ function createVolumeSliders() {
         volumeContainer.appendChild(volumeContent);
         toolbarBottom.appendChild(volumeContainer);
 
-        // Set initial icon state
-        updateVolumeIcon(volumeIcon, videoEl.muted ? '0' : (videoEl.volume * 100).toString());
+        // Set initial icon state (use first video as reference)
+        const firstVideo = videoElements[0];
+        updateVolumeIcon(volumeIcon, firstVideo.muted ? '0' : (firstVideo.volume * 100).toString());
     });
 }
 
@@ -1417,12 +1460,6 @@ function updateVolumeIcon(icon, value) {
         icon.className = 'ynicon ynicon-mute';
     }
 }
-
-// Run volume slider creation and visibility check periodically
-setInterval(() => {
-    createVolumeSliders();
-    updateVolumeSliderVisibility();
-}, 1000);
 
 // Watch for selection changes and reapply volumes immediately
 function setupVolumeObserver() {
@@ -1457,15 +1494,15 @@ function reapplyAllGuestVolumes() {
 
     videoTiles.forEach(tile => {
         const username = getGuestUsername(tile);
-        const videoEl = tile.querySelector('video');
+        const videoElements = tile.querySelectorAll('video');
         const slider = tile.querySelector('.betternow-volume-slider .slider');
         const volumeIcon = tile.querySelector('.betternow-volume-slider .volume__icon i');
 
-        if (!videoEl) return;
+        if (videoElements.length === 0) return;
 
         // Skip the user's own tile (shows "You") to prevent echo
         if (username === 'You') {
-            videoEl.muted = true;
+            videoElements.forEach(v => v.muted = true);
             return;
         }
 
@@ -1474,11 +1511,13 @@ function reapplyAllGuestVolumes() {
             ? guestVolumeStates.get(username)
             : 100;
 
-        // Apply multiplier for actual video volume
+        // Apply multiplier for actual video volume to ALL videos in tile
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
 
-        videoEl.volume = effectiveVolume / 100;
-        videoEl.muted = effectiveVolume === 0;
+        videoElements.forEach(v => {
+            v.volume = effectiveVolume / 100;
+            v.muted = effectiveVolume === 0;
+        });
 
         // Individual slider shows base volume (not multiplied)
         if (slider) slider.value = baseVolume.toString();
@@ -1486,11 +1525,55 @@ function reapplyAllGuestVolumes() {
     });
 }
 
-// Setup observer and global volume slider periodically until active
-setInterval(() => {
+// Initialize volume controls when DOM changes (instead of polling every second)
+function initVolumeControls() {
     setupVolumeObserver();
+    createVolumeSliders();
+    updateVolumeSliderVisibility();
     createGlobalVolumeSlider();
-}, 1000);
+}
+
+// Observer to detect when video player or toolbar appears
+const volumeControlsObserver = new MutationObserver((mutations) => {
+    let shouldInit = false;
+
+    for (const mutation of mutations) {
+        // Check for added nodes that might be video tiles or toolbar
+        if (mutation.addedNodes.length > 0) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    // Check if it's a video tile, toolbar, or contains them
+                    if (node.matches?.('.video, .fullscreen-wrapper, .toolbar, app-channel') ||
+                        node.querySelector?.('.video, .fullscreen-wrapper, .toolbar')) {
+                        shouldInit = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (shouldInit) break;
+    }
+
+    if (shouldInit) {
+        // Debounce to avoid multiple rapid calls
+        clearTimeout(volumeControlsObserver.timeout);
+        volumeControlsObserver.timeout = setTimeout(initVolumeControls, 100);
+    }
+});
+
+// Start observing
+if (document.body) {
+    volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+} else {
+    document.addEventListener('DOMContentLoaded', () => {
+        volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+    });
+}
+
+// Also run on initial load and navigation
+initVolumeControls();
+document.addEventListener('DOMContentLoaded', initVolumeControls);
+window.addEventListener('popstate', initVolumeControls); // Handle back/forward navigation
 
 // ============ Profile Modal Developer Badge ============
 
@@ -1553,6 +1636,3 @@ profileModalObserver.observe(document.body, {
     childList: true,
     subtree: true
 });
-
-// Also run periodically in case observer misses it
-setInterval(addDevBadgeToProfileModal, 500);
