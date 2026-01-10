@@ -23,6 +23,14 @@ app-channel .header {
     align-content: flex-start !important;
 }
 
+/* Fullscreen grid view - center content vertically */
+.grid-view-enabled app-channel .fullscreen-wrapper:fullscreen,
+.grid-view-enabled app-channel .fullscreen-wrapper:-webkit-full-screen {
+    height: 100vh !important;
+    align-content: center !important;
+    justify-content: center !important;
+}
+
 /* All videos: 2 columns, auto rows */
 .grid-view-enabled app-channel .fullscreen-wrapper > .video {
     position: relative !important;
