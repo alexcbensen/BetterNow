@@ -17,7 +17,7 @@ let chatFilterBypassEnabled = localStorage.getItem('betternow_chatFilterBypass')
 
 function getCurrentUserId() {
     if (currentUserId) return currentUserId;
-
+    
     const entries = performance.getEntriesByType('resource');
     for (const entry of entries) {
         if (entry.name && entry.name.includes('userId=')) {
@@ -28,17 +28,36 @@ function getCurrentUserId() {
             }
         }
     }
-
+    
     return null;
 }
 
 // ============ Chat Filter Bypass functions ============
 
 let filterBypassInjected = false;
+let filterBypassWordList = null;
+
+async function fetchFilterBypassWordList() {
+    if (filterBypassWordList) return filterBypassWordList;
+    
+    try {
+        const response = await fetch(`${FIRESTORE_BASE_URL}/config/filterBypass`);
+        if (!response.ok) return null;
+        
+        const data = await response.json();
+        if (data.fields && data.fields.wordList && data.fields.wordList.arrayValue) {
+            filterBypassWordList = data.fields.wordList.arrayValue.values.map(v => v.stringValue);
+            return filterBypassWordList;
+        }
+    } catch (e) {
+        console.error('[BetterNow] Failed to fetch filter bypass word list:', e);
+    }
+    return null;
+}
 
 function injectFilterBypassScript() {
     if (filterBypassInjected) return;
-
+    
     // Inject the external script into page context
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('js/filter-bypass.js');
@@ -46,21 +65,31 @@ function injectFilterBypassScript() {
         this.remove();
     };
     (document.head || document.documentElement).appendChild(script);
-
+    
     filterBypassInjected = true;
 }
 
-function enableChatFilterBypass() {
+async function sendWordListToPageContext() {
+    const words = await fetchFilterBypassWordList();
+    if (words && words.length > 0) {
+        window.postMessage({ type: 'BETTERNOW_FILTER_WORDLIST', words: words }, '*');
+    }
+}
+
+async function enableChatFilterBypass() {
     injectFilterBypassScript();
     localStorage.setItem('betternow_chatFilterBypass', 'true');
-
+    
+    // Fetch and send word list
+    await sendWordListToPageContext();
+    
     // Update page context variable
     window.postMessage({ type: 'BETTERNOW_FILTER_BYPASS', enabled: true }, '*');
 }
 
 function disableChatFilterBypass() {
     localStorage.setItem('betternow_chatFilterBypass', 'false');
-
+    
     // Update page context variable
     window.postMessage({ type: 'BETTERNOW_FILTER_BYPASS', enabled: false }, '*');
 }
@@ -68,6 +97,8 @@ function disableChatFilterBypass() {
 // Initialize chat filter bypass if enabled
 if (chatFilterBypassEnabled) {
     injectFilterBypassScript();
+    // Send word list after a short delay to ensure script is loaded
+    setTimeout(sendWordListToPageContext, 100);
 }
 
 // ============ Feature Access Check ============
@@ -75,10 +106,10 @@ if (chatFilterBypassEnabled) {
 function userHasFeature(feature) {
     const userId = getCurrentUserId();
     if (!userId) return false;
-
+    
     // Admins have all features
     if (ADMIN_USER_IDS.includes(userId)) return true;
-
+    
     // Check granted features
     const features = grantedFeatures[userId] || [];
     return features.includes(feature);
@@ -89,17 +120,17 @@ function userHasFeature(feature) {
 function createFilterBypassButton() {
     // Check if button already exists
     if (document.getElementById('betternow-filter-bypass-btn')) return;
-
+    
     // Check if user has access to this feature
     if (!userHasFeature('filterBypass')) return;
-
+    
     // Find the BetterNow toolbar left section
     const toolbar = document.getElementById('betternow-toolbar');
     if (!toolbar) return;
-
+    
     const leftSection = toolbar.querySelector('#betternow-toolbar > div:first-child');
     if (!leftSection) return;
-
+    
     // Create the filter bypass toggle button
     const filterBypassBtn = document.createElement('button');
     filterBypassBtn.id = 'betternow-filter-bypass-btn';
@@ -129,7 +160,7 @@ function createFilterBypassButton() {
         }
         localStorage.setItem('betternow_chatFilterBypass', chatFilterBypassEnabled);
     };
-
+    
     leftSection.appendChild(filterBypassBtn);
 }
 
@@ -267,14 +298,14 @@ function openAdminPanel() {
     const mySettingsToggle = document.getElementById('my-settings-toggle');
     const mySettingsContent = document.getElementById('my-settings-content');
     const mySettingsArrow = document.getElementById('my-settings-arrow');
-
+    
     if (mySettingsToggle && mySettingsContent && mySettingsArrow) {
         mySettingsToggle.addEventListener('click', () => {
             const isHidden = mySettingsContent.style.display === 'none';
             mySettingsContent.style.display = isHidden ? 'block' : 'none';
             mySettingsArrow.textContent = isHidden ? '▼' : '▶';
         });
-
+        
         // Populate my settings fields
         document.getElementById('my-border-enabled').checked = mySettings.borderEnabled || false;
         document.getElementById('my-border-color1').value = mySettings.borderColor1 || '';
@@ -286,7 +317,7 @@ function openAdminPanel() {
         document.getElementById('my-level-color2').value = mySettings.levelColor2 || '';
         document.getElementById('my-frame-enabled').checked = mySettings.frameEnabled || false;
         document.getElementById('my-frame-url').value = mySettings.frameUrl || '';
-
+        
         // Update color previews
         const updateMyPreview = (inputId, previewId) => {
             const input = document.getElementById(inputId);
@@ -304,18 +335,18 @@ function openAdminPanel() {
                 });
             }
         };
-
+        
         updateMyPreview('my-border-color1', 'my-border-preview1');
         updateMyPreview('my-border-color2', 'my-border-preview2');
         updateMyPreview('my-text-color', 'my-text-preview');
         updateMyPreview('my-level-color1', 'my-level-preview1');
         updateMyPreview('my-level-color2', 'my-level-preview2');
-
+        
         // Frame preview handling
         const frameUrlInput = document.getElementById('my-frame-url');
         const framePreview = document.getElementById('my-frame-preview');
         const framePreviewImg = document.getElementById('my-frame-preview-img');
-
+        
         const showFramePreview = (url) => {
             if (url) {
                 framePreviewImg.src = url;
@@ -327,12 +358,12 @@ function openAdminPanel() {
                 frameUrlInput.style.display = 'block';
             }
         };
-
+        
         // Initialize frame preview if we have a URL
         if (mySettings.frameUrl) {
             showFramePreview(mySettings.frameUrl);
         }
-
+        
         // Listen for paste/input on frame URL
         frameUrlInput.addEventListener('input', () => {
             const url = frameUrlInput.value.trim();
@@ -343,18 +374,18 @@ function openAdminPanel() {
                 frameUrlInput.value = '';
             }
         });
-
+        
         // Click on preview to change
         framePreview.addEventListener('click', () => {
             framePreview.style.display = 'none';
             frameUrlInput.style.display = 'block';
             frameUrlInput.focus();
         });
-
+        
         // Save my settings button
         document.getElementById('save-my-settings').addEventListener('click', async () => {
             const btn = document.getElementById('save-my-settings');
-
+            
             const borderEnabled = document.getElementById('my-border-enabled').checked;
             const borderColor1 = normalizeHex(document.getElementById('my-border-color1').value.trim());
             const borderColor2 = normalizeHex(document.getElementById('my-border-color2').value.trim());
@@ -364,12 +395,12 @@ function openAdminPanel() {
             const levelColor1 = normalizeHex(document.getElementById('my-level-color1').value.trim());
             const levelColor2 = normalizeHex(document.getElementById('my-level-color2').value.trim());
             const frameEnabled = document.getElementById('my-frame-enabled').checked;
-
+            
             // Get frame URL from preview data attribute, or input, or existing settings
             const framePreview = document.getElementById('my-frame-preview');
             const frameUrlInput = document.getElementById('my-frame-url');
             const frameUrl = framePreview.dataset.frameUrl || frameUrlInput.value.trim() || mySettings.frameUrl || '';
-
+            
             mySettings = {
                 borderEnabled: borderEnabled,
                 borderColor1: borderEnabled ? borderColor1 : '',
@@ -381,10 +412,10 @@ function openAdminPanel() {
                 frameEnabled: frameEnabled,
                 frameUrl: frameEnabled ? frameUrl : ''
             };
-
+            
             await saveSettingsToFirebase();
             applyBorders();
-
+            
             // Visual feedback
             btn.textContent = 'Saved!';
             setTimeout(() => { btn.textContent = 'Save My Style'; }, 1000);
