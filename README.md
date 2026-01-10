@@ -5,12 +5,16 @@ A Chrome extension that adds visual enhancements and quality-of-life improvement
 ## Features
 
 ### Grid View Mode
-Toggle a grid layout for multi-person broadcasts, allowing you to see all participants equally in a 2x2 grid instead of one main video with a smaller guest feed.
+Watch multi-person broadcasts in a clean 2x2 grid layout. See all participants equally instead of one main video with a tiny guest feed. Perfect for group streams and collaborations. Screenshare broadcasts display with a picture-in-picture camera overlay.
 
 ### Auto Chest Drop
-Automatically open your treasure chest when it reaches a set like threshold while broadcasting. Features a clean UI that matches YouNow's native style.
+Never miss a chest drop again! Set a like threshold and your treasure chest will automatically open when reached. Features a sleek UI that matches YouNow's native design. Supports K and M suffixes (type "500K" or "1M" for quick entry).
 
-**Note:** There is currently a bug where this feature only works on non-partnered accounts.
+### Individual Volume Controls
+Adjust volume for each participant independently in multi-guest broadcasts.
+
+### Sticky Header
+Toggle the header bar to stay fixed at the top of the page as you scroll.
 
 ## Installation
 
