@@ -20,6 +20,8 @@
         "js/firebase.js",
         "js/admin.js",
         "js/features.js",
+        "js/features/chat/chat.js",
+        "js/features/chest/chest.js",
         "js/features/volume/volume.js",
         "js/debug.js",
         "js/script.js"
