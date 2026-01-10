@@ -22,6 +22,7 @@
         "js/features.js",
         "js/features/chat/chat.js",
         "js/features/chest/chest.js",
+        "js/features/explore/explore.js",
         "js/features/volume/volume.js",
         "js/debug.js",
         "js/script.js"

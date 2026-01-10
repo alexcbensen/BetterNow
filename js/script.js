@@ -126,27 +126,7 @@ gridObserver.observe(document.body, { childList: true, subtree: true });
 createGridToggle();
 applyGridView();
 
-// Watch for broadcast status changes (app-channel, chest button, or END button appearing)
-const broadcastObserver = new MutationObserver((mutations) => {
-    const shouldCheck = mutations.some(mutation => {
-        if (mutation.type === 'childList') {
-            return Array.from(mutation.addedNodes).some(node =>
-                    node.nodeType === 1 && (
-                        node.matches?.('app-channel, .broadcast-ended, .chest-button, .button--red') ||
-                        node.querySelector?.('app-channel, .broadcast-ended, .chest-button, .button--red')
-                    )
-            ) || Array.from(mutation.removedNodes).some(node =>
-                    node.nodeType === 1 && (
-                        node.matches?.('app-channel, .chest-button, .button--red') ||
-                        node.querySelector?.('app-channel, .chest-button, .button--red')
-                    )
-            );
-        }
-        return false;
-    });
 
-    if (shouldCheck) {
-        // Delay slightly to let other elements load
         setTimeout(checkBroadcastStatus, 500);
     }
 });
