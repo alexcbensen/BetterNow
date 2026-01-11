@@ -1,9 +1,28 @@
 // ============ Chest Auto-Drop ============
 // Automatically opens treasure chest when like threshold is reached
 
+// Debug logging - set to false for production
+const CHEST_DEBUG = false;
+
+function chestLog(...args) {
+    if (CHEST_DEBUG) {
+        console.log('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
+    }
+}
+
+function chestWarn(...args) {
+    console.warn('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
+}
+
+function chestError(...args) {
+    console.error('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
+}
+
 let chestObserver = null;
 let isOpeningChest = false;
 let lastCheckedLikes = null;
+let chestOpenCount = 0; // Track how many chests opened this session
+let lastChestOpenTime = null; // Track when last chest was opened
 
 function parseDisplayLikes(text) {
     // Parse "1,001" or "1.5K" or "2.3M" etc
@@ -23,38 +42,69 @@ function parseDisplayLikes(text) {
 function getCurrentLikesFromToolbar() {
     // Find the likes in toolbar__right (not the partner tiers progress in the middle)
     const toolbarRight = document.querySelector('.toolbar__right');
-    if (!toolbarRight) return null;
+    if (!toolbarRight) {
+        chestLog('getCurrentLikesFromToolbar: toolbar__right not found');
+        return null;
+    }
     
     const likeIcon = toolbarRight.querySelector('.ynicon-like');
-    if (!likeIcon) return null;
+    if (!likeIcon) {
+        chestLog('getCurrentLikesFromToolbar: like icon not found');
+        return null;
+    }
 
     const valueDiv = likeIcon.parentElement?.querySelector('.toolbar__value');
-    if (!valueDiv) return null;
+    if (!valueDiv) {
+        chestLog('getCurrentLikesFromToolbar: toolbar__value not found');
+        return null;
+    }
 
-    return parseDisplayLikes(valueDiv.textContent);
+    const likes = parseDisplayLikes(valueDiv.textContent);
+    return likes;
 }
 
 function isBroadcasting() {
     // Check if the END button exists (only visible when broadcasting)
-    return document.querySelector('.toolbar .button--red') !== null;
+    const endButton = document.querySelector('.toolbar .button--red');
+    const result = endButton !== null;
+    return result;
 }
 
 function createChestControls() {
-    if (!isBroadcasting()) return;
-    if (document.getElementById('auto-chest-controls')) return;
+    if (!isBroadcasting()) {
+        chestLog('createChestControls: Not broadcasting, skipping');
+        return;
+    }
+    if (document.getElementById('auto-chest-controls')) {
+        return;
+    }
 
     // Don't show on excluded pages
-    if (EXCLUDED_FROM_AUTO_CHEST.some(name => window.location.pathname.toLowerCase() === '/' + name)) return;
+    if (EXCLUDED_FROM_AUTO_CHEST.some(name => window.location.pathname.toLowerCase() === '/' + name)) {
+        chestLog('createChestControls: Excluded page, skipping');
+        return;
+    }
 
     // Don't show if user doesn't have a chest
-    if (!document.querySelector('.chest-button')) return;
+    if (!document.querySelector('.chest-button')) {
+        chestLog('createChestControls: No chest button found, skipping');
+        return;
+    }
+
+    chestLog('createChestControls: Creating controls');
 
     // Get the BetterNow toolbar's left section
     const betterNowToolbar = document.getElementById('betternow-toolbar');
-    if (!betterNowToolbar) return;
+    if (!betterNowToolbar) {
+        chestLog('createChestControls: BetterNow toolbar not found');
+        return;
+    }
     
     const leftSection = betterNowToolbar.querySelector('.betternow-toolbar__left');
-    if (!leftSection) return;
+    if (!leftSection) {
+        chestLog('createChestControls: Left section not found');
+        return;
+    }
 
     // Add CSS to hide number input arrows
     if (!document.getElementById('chest-input-styles')) {
@@ -141,6 +191,7 @@ function createChestControls() {
 
     toggleBtn.addEventListener('click', () => {
         autoChestEnabled = !autoChestEnabled;
+        chestLog('Toggle clicked, autoChestEnabled:', autoChestEnabled);
         if (autoChestEnabled) {
             toggleBtn.style.background = 'var(--color-primary-green, #08d687)';
             thresholdControls.style.display = 'flex';
@@ -225,6 +276,7 @@ function createChestControls() {
         const value = parseInt(thresholdInput.value.replace(/,/g, ''));
         if (!isNaN(value) && value > 0) {
             autoChestThreshold = value;
+            chestLog('Threshold updated to:', autoChestThreshold);
             saveChestSettingsLocal();
 
             // Reformat with commas
@@ -246,6 +298,7 @@ function createChestControls() {
                 updateStatus.textContent = '';
             }, 1500);
         } else {
+            chestWarn('Invalid threshold value:', thresholdInput.value);
             // Show error
             updateStatus.style.color = '#ef4444';
             updateStatus.textContent = 'Invalid';
@@ -255,44 +308,99 @@ function createChestControls() {
             }, 1500);
         }
     });
+
+    chestLog('Controls created successfully');
 }
 
 function removeChestControls() {
     const controls = document.getElementById('auto-chest-controls');
     if (controls) {
+        chestLog('Removing chest controls');
         controls.remove();
     }
 }
 
 function isChestDropping() {
     // Check if the chest lottie animation is visible (chest is currently dropping)
-    return document.querySelector('app-chest-lottie') !== null;
+    const dropping = document.querySelector('app-chest-lottie') !== null;
+    return dropping;
+}
+
+function getChestState() {
+    return {
+        enabled: autoChestEnabled,
+        threshold: autoChestThreshold,
+        lastChestOpenLikes: lastChestOpenLikes,
+        lastCheckedLikes: lastCheckedLikes,
+        currentLikes: getCurrentLikesFromToolbar(),
+        isOpeningChest: isOpeningChest,
+        isChestDropping: isChestDropping(),
+        isBroadcasting: isBroadcasting(),
+        chestCount: getCurrentLikesFromToolbar() - lastChestOpenLikes,
+        sessionChestsOpened: chestOpenCount,
+        lastChestOpenTime: lastChestOpenTime
+    };
 }
 
 async function checkChestThreshold() {
-    if (!autoChestEnabled || !isBroadcasting() || isOpeningChest) return;
-    if (autoChestThreshold === null || autoChestThreshold <= 0) return;
-    if (isChestDropping()) return;
+    const state = getChestState();
+    
+    if (!autoChestEnabled) {
+        return;
+    }
+    
+    if (!isBroadcasting()) {
+        chestLog('checkChestThreshold: Not broadcasting');
+        return;
+    }
+    
+    if (isOpeningChest) {
+        chestLog('checkChestThreshold: Already opening chest, skipping');
+        return;
+    }
+    
+    if (autoChestThreshold === null || autoChestThreshold <= 0) {
+        chestLog('checkChestThreshold: No valid threshold set');
+        return;
+    }
+    
+    if (isChestDropping()) {
+        chestLog('checkChestThreshold: Chest is currently dropping, skipping');
+        return;
+    }
 
     const currentLikes = getCurrentLikesFromToolbar();
-    if (currentLikes === null) return;
+    if (currentLikes === null) {
+        chestWarn('checkChestThreshold: Could not get current likes');
+        return;
+    }
 
     // Only check if likes changed
-    if (currentLikes === lastCheckedLikes) return;
+    if (currentLikes === lastCheckedLikes) {
+        return;
+    }
+    
+    const previousLikes = lastCheckedLikes;
     lastCheckedLikes = currentLikes;
     saveChestSettingsLocal();
 
+    chestLog(`Likes changed: ${previousLikes} → ${currentLikes}`);
+
     // Detect new broadcast (likes reset or lower than last opened)
     if (currentLikes < lastChestOpenLikes) {
+        chestLog(`New broadcast detected: currentLikes (${currentLikes}) < lastChestOpenLikes (${lastChestOpenLikes}), resetting`);
         lastChestOpenLikes = 0;
         saveChestSettingsLocal();
     }
 
     // Calculate chest count
-    const chestCount = currentLikes - lastChestOpenLikes;
+    const likesSinceLastChest = currentLikes - lastChestOpenLikes;
+
+    chestLog(`Threshold check: ${likesSinceLastChest} likes since last chest, threshold: ${autoChestThreshold}`);
 
     // Check if threshold reached
-    if (chestCount >= autoChestThreshold) {
+    if (likesSinceLastChest >= autoChestThreshold) {
+        chestLog(`*** THRESHOLD REACHED! Opening chest... ***`);
         await openChest(currentLikes);
     }
 }
@@ -302,6 +410,7 @@ function saveChestSettingsLocal() {
     localStorage.setItem('betternow_autoChestThreshold', autoChestThreshold);
     localStorage.setItem('betternow_lastChestOpenLikes', lastChestOpenLikes);
     localStorage.setItem('betternow_lastCheckedLikes', lastCheckedLikes);
+    chestLog('Settings saved to localStorage');
 }
 
 function loadChestSettingsLocal() {
@@ -317,6 +426,13 @@ function loadChestSettingsLocal() {
     }
     if (lastLikes !== null) lastChestOpenLikes = parseInt(lastLikes);
     if (lastChecked !== null) lastCheckedLikes = parseInt(lastChecked);
+
+    chestLog('Settings loaded from localStorage:', {
+        enabled: autoChestEnabled,
+        threshold: autoChestThreshold,
+        lastChestOpenLikes: lastChestOpenLikes,
+        lastCheckedLikes: lastCheckedLikes
+    });
 }
 
 // Load chest settings on startup
@@ -324,20 +440,25 @@ loadChestSettingsLocal();
 
 async function openChest(currentLikes) {
     isOpeningChest = true;
+    const startTime = Date.now();
+    chestLog('openChest: Starting chest open sequence');
 
     // Click the chest button
     const chestButton = document.querySelector('.chest-button');
     if (!chestButton) {
+        chestError('openChest: Chest button not found!');
         isOpeningChest = false;
         return;
     }
 
+    chestLog('openChest: Clicking chest button');
     chestButton.click();
 
     // Wait for modal to appear
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Wait for Open button to appear (poll for up to 2 seconds)
+    chestLog('openChest: Waiting for Open button...');
     let openButton = null;
     for (let i = 0; i < 20; i++) {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -351,52 +472,75 @@ async function openChest(currentLikes) {
         if (openButton) break;
     }
 
-    if (openButton) {
-        openButton.click();
-
-        // Wait for Make it Rain button to appear (poll for up to 2 seconds)
-        let rainButton = null;
-        for (let i = 0; i < 20; i++) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            const buttons = document.querySelectorAll('.button--green');
-            for (const btn of buttons) {
-                if (btn.textContent.includes('Make it Rain')) {
-                    rainButton = btn;
-                    break;
-                }
-            }
-            if (rainButton) break;
-        }
-
-        if (rainButton) {
-            rainButton.click();
-
-            // Update tracking
-            lastChestOpenLikes = currentLikes;
-            saveChestSettingsLocal();
-
-            // Wait a bit for the chest animation/modal transition
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Wait for "I'll Tell Them!" button to appear (poll for up to 2 seconds)
-            let tellButton = null;
-            for (let i = 0; i < 20; i++) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                const buttons = document.querySelectorAll('.button--green');
-                for (const btn of buttons) {
-                    if (btn.textContent.includes('Tell Them')) {
-                        tellButton = btn;
-                        break;
-                    }
-                }
-                if (tellButton) break;
-            }
-
-            if (tellButton) {
-                tellButton.click();
-            }
-        }
+    if (!openButton) {
+        chestError('openChest: Open button not found after 2s!');
+        isOpeningChest = false;
+        return;
     }
+
+    chestLog('openChest: Clicking Open button');
+    openButton.click();
+
+    // Wait for Make it Rain button to appear (poll for up to 2 seconds)
+    chestLog('openChest: Waiting for Make it Rain button...');
+    let rainButton = null;
+    for (let i = 0; i < 20; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const buttons = document.querySelectorAll('.button--green');
+        for (const btn of buttons) {
+            if (btn.textContent.includes('Make it Rain')) {
+                rainButton = btn;
+                break;
+            }
+        }
+        if (rainButton) break;
+    }
+
+    if (!rainButton) {
+        chestError('openChest: Make it Rain button not found after 2s!');
+        isOpeningChest = false;
+        return;
+    }
+
+    chestLog('openChest: Clicking Make it Rain button');
+    rainButton.click();
+
+    // Update tracking
+    const previousLastChestLikes = lastChestOpenLikes;
+    lastChestOpenLikes = currentLikes;
+    chestOpenCount++;
+    lastChestOpenTime = new Date().toISOString();
+    saveChestSettingsLocal();
+
+    chestLog(`openChest: Chest opened! lastChestOpenLikes: ${previousLastChestLikes} → ${lastChestOpenLikes}, session total: ${chestOpenCount}`);
+
+    // Wait a bit for the chest animation/modal transition
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Wait for "I'll Tell Them!" button to appear (poll for up to 2 seconds)
+    chestLog('openChest: Waiting for Tell Them button...');
+    let tellButton = null;
+    for (let i = 0; i < 20; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const buttons = document.querySelectorAll('.button--green');
+        for (const btn of buttons) {
+            if (btn.textContent.includes('Tell Them')) {
+                tellButton = btn;
+                break;
+            }
+        }
+        if (tellButton) break;
+    }
+
+    if (tellButton) {
+        chestLog('openChest: Clicking Tell Them button');
+        tellButton.click();
+    } else {
+        chestWarn('openChest: Tell Them button not found (non-critical)');
+    }
+
+    const duration = Date.now() - startTime;
+    chestLog(`openChest: Sequence complete in ${duration}ms`);
 
     // Wait a bit before allowing another check
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -404,10 +548,18 @@ async function openChest(currentLikes) {
 }
 
 function startChestMonitoring() {
-    if (chestObserver) return;
+    if (chestObserver) {
+        chestLog('startChestMonitoring: Already monitoring');
+        return;
+    }
 
     const toolbar = document.querySelector('.toolbar');
-    if (!toolbar) return;
+    if (!toolbar) {
+        chestWarn('startChestMonitoring: Toolbar not found');
+        return;
+    }
+
+    chestLog('startChestMonitoring: Starting observer');
 
     chestObserver = new MutationObserver(() => {
         checkChestThreshold();
@@ -418,17 +570,24 @@ function startChestMonitoring() {
         subtree: true,
         characterData: true
     });
+
+    // Also run an initial check
+    checkChestThreshold();
 }
 
 function stopChestMonitoring() {
     if (chestObserver) {
+        chestLog('stopChestMonitoring: Stopping observer');
         chestObserver.disconnect();
         chestObserver = null;
     }
 }
 
 function checkBroadcastStatus() {
-    if (isBroadcasting()) {
+    const broadcasting = isBroadcasting();
+    chestLog('checkBroadcastStatus: broadcasting =', broadcasting, ', autoChestEnabled =', autoChestEnabled);
+    
+    if (broadcasting) {
         createChestControls();
         if (autoChestEnabled) {
             startChestMonitoring();
@@ -438,3 +597,13 @@ function checkBroadcastStatus() {
         stopChestMonitoring();
     }
 }
+
+// Expose debug function globally
+window.debugChest = function() {
+    const state = getChestState();
+    console.log('[BetterNow Chest] Current State:');
+    console.table(state);
+    return state;
+};
+
+chestLog('Chest module initialized');
