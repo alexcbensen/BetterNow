@@ -21,6 +21,11 @@ function createBetterNowToolbar() {
     const youNowToolbar = document.querySelector('app-top-toolbar');
     if (!youNowToolbar) return null;
     
+    // Don't show toolbar if not on a live stream
+    // broadcaster-is-online class only exists when viewing an active broadcast
+    const isLive = document.querySelector('.broadcaster-is-online');
+    if (!isLive) return null;
+    
     // Create our toolbar
     const toolbar = document.createElement('div');
     toolbar.id = 'betternow-toolbar';
