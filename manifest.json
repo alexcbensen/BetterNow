@@ -31,7 +31,6 @@
         "js/features/volume/volume.js",
         "js/firebase.js",
         "js/admin.js",
-        "js/debug.js",
         "js/features/active-users/active-users.js",
         "js/script.js"
       ]
