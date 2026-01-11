@@ -341,7 +341,13 @@ function setsAreEqual(a, b) {
 
 function setupGuestChangeObserver() {
     const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
-    if (!fullscreenWrapper || guestChangeObserver) return;
+    if (!fullscreenWrapper) return;
+    
+    // Disconnect existing observer if any
+    if (guestChangeObserver) {
+        guestChangeObserver.disconnect();
+        guestChangeObserver = null;
+    }
     
     volumeLog('setupGuestChangeObserver: Setting up observer on fullscreen-wrapper');
     
@@ -572,6 +578,10 @@ function createVolumeSliders() {
         const firstVideo = videoElements[0];
         updateVolumeIcon(volumeIcon, firstVideo.muted ? '0' : (firstVideo.volume * 100).toString());
     });
+    
+    if (createdCount > 0) {
+        volumeLog('createVolumeSliders: Created', createdCount, 'sliders');
+    }
 }
 
 // Update volume slider visibility based on tile selection
@@ -667,6 +677,36 @@ function reapplyAllGuestVolumes() {
     });
 }
 
+// Reset volume controls state for new stream
+function resetVolumeControls() {
+    volumeLog('resetVolumeControls: Resetting for new stream');
+    
+    // Disconnect existing observer
+    if (guestChangeObserver) {
+        guestChangeObserver.disconnect();
+        guestChangeObserver = null;
+    }
+    
+    // Clear last guest usernames
+    lastGuestUsernames = new Set();
+    
+    // Remove existing volume sliders
+    document.querySelectorAll('.betternow-volume-slider').forEach(el => el.remove());
+    
+    // Remove global volume slider
+    document.querySelectorAll('.betternow-global-volume').forEach(el => el.remove());
+    document.querySelectorAll('.betternow-volume-label').forEach(el => el.remove());
+    
+    // Clear fullscreen-wrapper observer flag so it can be re-observed
+    const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
+    if (fullscreenWrapper) {
+        delete fullscreenWrapper.dataset.volumeObserver;
+    }
+    
+    // Reset initialized flag
+    volumeInitialized = false;
+}
+
 // Initialize volume controls when DOM changes (instead of polling every second)
 let volumeInitialized = false;
 
@@ -745,11 +785,95 @@ if (document.readyState === 'loading') {
     startVolumeObserver();
 }
 
-// Handle SPA navigation (back/forward buttons)
-window.addEventListener('popstate', () => {
-    volumeLog('popstate: Navigation detected, resetting');
-    volumeInitialized = false;
-    // Restart observer since we disconnected it after init
-    volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
-    initVolumeControls();
-});
+// Handle navigation to new live streams
+let lastStreamUrl = location.href;
+let liveStreamObserver = null;
+let liveStreamCheckTimeout = null;
+
+function handleNavigation() {
+    const newUrl = location.href;
+    if (newUrl === lastStreamUrl) return;
+    
+    volumeLog('Navigation detected:', lastStreamUrl, '→', newUrl);
+    lastStreamUrl = newUrl;
+    
+    // Stop any existing live stream observer
+    if (liveStreamObserver) {
+        liveStreamObserver.disconnect();
+        liveStreamObserver = null;
+    }
+    
+    // Clear any pending timeout
+    if (liveStreamCheckTimeout) {
+        clearTimeout(liveStreamCheckTimeout);
+        liveStreamCheckTimeout = null;
+    }
+    
+    // Watch for .broadcaster-is-online to appear (indicates a live stream)
+    liveStreamObserver = new MutationObserver(() => {
+        const isLive = document.querySelector('.broadcaster-is-online');
+        if (isLive) {
+            volumeLog('Live stream detected, reinitializing volume controls');
+            liveStreamObserver.disconnect();
+            liveStreamObserver = null;
+            
+            if (liveStreamCheckTimeout) {
+                clearTimeout(liveStreamCheckTimeout);
+                liveStreamCheckTimeout = null;
+            }
+            
+            resetVolumeControls();
+            // Restart observer since we disconnected it after init
+            volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+            initVolumeControls();
+        }
+    });
+    
+    liveStreamObserver.observe(document.body, { childList: true, subtree: true });
+    
+    // Also check immediately in case the element already exists
+    const isLive = document.querySelector('.broadcaster-is-online');
+    if (isLive) {
+        volumeLog('Live stream already present, reinitializing volume controls');
+        liveStreamObserver.disconnect();
+        liveStreamObserver = null;
+        
+        resetVolumeControls();
+        volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+        initVolumeControls();
+    } else {
+        // If not immediately a live stream, wait a bit then clean up if still not live
+        liveStreamCheckTimeout = setTimeout(() => {
+            const stillLive = document.querySelector('.broadcaster-is-online');
+            if (!stillLive) {
+                volumeLog('Not a live stream, cleaning up volume controls');
+                
+                if (liveStreamObserver) {
+                    liveStreamObserver.disconnect();
+                    liveStreamObserver = null;
+                }
+                
+                // Clean up volume controls since we're not on a live stream
+                resetVolumeControls();
+                volumeControlsObserver.disconnect();
+            }
+            liveStreamCheckTimeout = null;
+        }, 2000);
+    }
+}
+
+// Intercept History API for SPA navigation
+const originalPushState = history.pushState;
+history.pushState = function() {
+    originalPushState.apply(this, arguments);
+    handleNavigation();
+};
+
+const originalReplaceState = history.replaceState;
+history.replaceState = function() {
+    originalReplaceState.apply(this, arguments);
+    handleNavigation();
+};
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', handleNavigation);
