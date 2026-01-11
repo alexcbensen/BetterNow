@@ -5,7 +5,7 @@
 const VOLUME_DEBUG = false;
 
 // Timeout for checking if page is a live stream (ms)
-const LIVE_STREAM_CHECK_TIMEOUT = 2000;
+const LIVE_STREAM_CHECK_TIMEOUT = 1000;
 
 function volumeLog(...args) {
     if (VOLUME_DEBUG) {
@@ -828,71 +828,74 @@ function handleNavigation() {
         liveStreamCheckTimeout = null;
     }
     
-    // Watch for .broadcaster-is-online to appear (indicates a live stream)
-    liveStreamObserver = new MutationObserver(() => {
+    // Always reset first - the old stream's DOM may still be present
+    resetVolumeControls();
+    
+    // Wait for Angular to update the DOM before checking/observing
+    setTimeout(() => {
+        // Check if we're now on a live stream
         const isLive = document.querySelector('.broadcaster-is-online');
         if (isLive) {
             volumeLog('Live stream detected, reinitializing volume controls');
-            liveStreamObserver.disconnect();
-            liveStreamObserver = null;
             
-            if (liveStreamCheckTimeout) {
-                clearTimeout(liveStreamCheckTimeout);
-                liveStreamCheckTimeout = null;
-            }
-            
-            resetVolumeControls();
-            // Restart observer since we disconnected it after init
             volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
             initVolumeControls();
-        }
-    });
-    
-    liveStreamObserver.observe(document.body, { childList: true, subtree: true });
-    
-    // Also check immediately in case the element already exists
-    const isLive = document.querySelector('.broadcaster-is-online');
-    if (isLive) {
-        volumeLog('Live stream already present, reinitializing volume controls');
-        liveStreamObserver.disconnect();
-        liveStreamObserver = null;
-        
-        resetVolumeControls();
-        volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
-        initVolumeControls();
-    } else {
-        // If not immediately a live stream, wait a bit then clean up if still not live
-        liveStreamCheckTimeout = setTimeout(() => {
-            const stillLive = document.querySelector('.broadcaster-is-online');
-            if (!stillLive) {
-                volumeLog('Not a live stream, cleaning up volume controls');
-                
-                if (liveStreamObserver) {
+        } else {
+            // Not immediately a live stream - start observer to watch for it
+            liveStreamObserver = new MutationObserver(() => {
+                const isLive = document.querySelector('.broadcaster-is-online');
+                if (isLive) {
+                    volumeLog('Live stream detected (via observer), reinitializing volume controls');
                     liveStreamObserver.disconnect();
                     liveStreamObserver = null;
+                    
+                    if (liveStreamCheckTimeout) {
+                        clearTimeout(liveStreamCheckTimeout);
+                        liveStreamCheckTimeout = null;
+                    }
+                    
+                    volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+                    initVolumeControls();
                 }
-                
-                // Clean up volume controls since we're not on a live stream
-                resetVolumeControls();
-                volumeControlsObserver.disconnect();
-            }
-            liveStreamCheckTimeout = null;
-        }, LIVE_STREAM_CHECK_TIMEOUT);
-    }
+            });
+            
+            liveStreamObserver.observe(document.body, { childList: true, subtree: true });
+            
+            // Set timeout to clean up if still not a live stream
+            liveStreamCheckTimeout = setTimeout(() => {
+                const stillLive = document.querySelector('.broadcaster-is-online');
+                if (!stillLive) {
+                    volumeLog('Not a live stream, cleaning up volume controls');
+                    
+                    if (liveStreamObserver) {
+                        liveStreamObserver.disconnect();
+                        liveStreamObserver = null;
+                    }
+                    
+                    volumeControlsObserver.disconnect();
+                }
+                liveStreamCheckTimeout = null;
+            }, LIVE_STREAM_CHECK_TIMEOUT);
+        }
+    }, 300);
 }
 
-// Intercept History API for SPA navigation
-const originalPushState = history.pushState;
-history.pushState = function() {
-    originalPushState.apply(this, arguments);
-    handleNavigation();
-};
+// Inject History API interceptor into page context
+// Content scripts run in isolated world, so we need to inject to catch Angular's navigation
+function injectNavigationInterceptor() {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('js/features/navigation/navigation-interceptor.js');
+    script.onload = function() {
+        this.remove();
+    };
+    (document.head || document.documentElement).appendChild(script);
+}
 
-const originalReplaceState = history.replaceState;
-history.replaceState = function() {
-    originalReplaceState.apply(this, arguments);
-    handleNavigation();
-};
+// Inject early
+injectNavigationInterceptor();
+
+// Listen for navigation events from page context
+window.addEventListener('betternow:navigation', handleNavigation);
 
 // Handle browser back/forward buttons
 window.addEventListener('popstate', handleNavigation);
