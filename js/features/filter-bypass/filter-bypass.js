@@ -7,7 +7,16 @@
     if (window.__betternowFilterBypassInjected) return;
     window.__betternowFilterBypassInjected = true;
     
-    console.log('[BetterNow Filter] Initialized');
+    // Debug logging - set to false for production
+    const FILTER_DEBUG = false;
+    
+    function filterLog(...args) {
+        if (FILTER_DEBUG) {
+            console.log('[BetterNow Filter]', ...args);
+        }
+    }
+    
+    filterLog('Initialized');
     
     const magicChar = String.fromCharCode(8203); // zero-width space
     
@@ -22,7 +31,7 @@
         }
         badWords = words;
         badWordsPattern = new RegExp('\\b(' + badWords.join('|') + ')\\b', 'gi');
-        console.log('[BetterNow Filter] Word list loaded:', words.length, 'words');
+        filterLog('Word list loaded:', words.length, 'words');
     }
     
     function obfuscateWord(word) {
@@ -60,7 +69,7 @@
                     if (comment) {
                         const { text: obfuscated, matched } = obfuscateChatText(comment);
                         if (matched.length > 0) {
-                            console.log('[BetterNow Filter] Message obfuscated. Matched words:', matched.join(', '));
+                            filterLog('Message obfuscated. Matched words:', matched.join(', '));
                             params.set("comment", obfuscated);
                             options = { ...options, body: params.toString() };
                         }
@@ -94,7 +103,7 @@
                     if (comment) {
                         const { text: obfuscated, matched } = obfuscateChatText(comment);
                         if (matched.length > 0) {
-                            console.log('[BetterNow Filter] Message obfuscated. Matched words:', matched.join(', '));
+                            filterLog('Message obfuscated. Matched words:', matched.join(', '));
                             params.set("comment", obfuscated);
                             data = params.toString();
                         }
