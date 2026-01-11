@@ -4,6 +4,9 @@
 // Debug logging - set to true for verbose output
 const VOLUME_DEBUG = false;
 
+// Timeout for checking if page is a live stream (ms)
+const LIVE_STREAM_CHECK_TIMEOUT = 2000;
+
 function volumeLog(...args) {
     if (VOLUME_DEBUG) {
         console.log('[BetterNow Volume]', new Date().toISOString().substr(11, 12), ...args);
@@ -724,6 +727,12 @@ function initVolumeControls() {
         volumeLog('Volume controls fully initialized, stopping main observer');
         volumeControlsObserver.disconnect();
         volumeInitialized = true;
+        
+        // Clear initial load check since we successfully initialized
+        if (typeof initialLoadCheckTimeout !== 'undefined' && initialLoadCheckTimeout) {
+            clearTimeout(initialLoadCheckTimeout);
+            initialLoadCheckTimeout = null;
+        }
     }
 }
 
@@ -784,6 +793,16 @@ if (document.readyState === 'loading') {
 } else {
     startVolumeObserver();
 }
+
+// On initial page load, check if we're on a live stream - if not, clean up after timeout
+let initialLoadCheckTimeout = setTimeout(() => {
+    const isLive = document.querySelector('.broadcaster-is-online');
+    if (!isLive && !volumeInitialized) {
+        volumeLog('Initial load: Not a live stream, cleaning up');
+        volumeControlsObserver.disconnect();
+    }
+    initialLoadCheckTimeout = null;
+}, LIVE_STREAM_CHECK_TIMEOUT);
 
 // Handle navigation to new live streams
 let lastStreamUrl = location.href;
@@ -858,7 +877,7 @@ function handleNavigation() {
                 volumeControlsObserver.disconnect();
             }
             liveStreamCheckTimeout = null;
-        }, 2000);
+        }, LIVE_STREAM_CHECK_TIMEOUT);
     }
 }
 
