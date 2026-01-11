@@ -5,7 +5,7 @@
 const VOLUME_DEBUG = false;
 
 // Timeout for checking if page is a live stream (ms)
-const LIVE_STREAM_CHECK_TIMEOUT = 1000;
+const LIVE_STREAM_CHECK_TIMEOUT = 2000;
 
 function volumeLog(...args) {
     if (VOLUME_DEBUG) {
@@ -21,6 +21,16 @@ function volumeWarn(...args) {
 function volumeError(...args) {
     // Errors are always shown - for things that shouldn't happen
     console.error('[BetterNow Volume]', ...args);
+}
+
+// Check if current page is a live stream
+// Requires multiple conditions to prevent false positives during navigation
+function isLiveStream() {
+    const hasOnlineClass = document.querySelector('.broadcaster-is-online') !== null;
+    const hasFullscreenWrapper = document.querySelector('.fullscreen-wrapper') !== null;
+    const hasVideoTiles = document.querySelectorAll('.fullscreen-wrapper > .video').length > 0;
+    
+    return hasOnlineClass && hasFullscreenWrapper && hasVideoTiles;
 }
 
 // Store volume states per video (keyed by username in toolbar)
@@ -796,8 +806,7 @@ if (document.readyState === 'loading') {
 
 // On initial page load, check if we're on a live stream - if not, clean up after timeout
 let initialLoadCheckTimeout = setTimeout(() => {
-    const isLive = document.querySelector('.broadcaster-is-online');
-    if (!isLive && !volumeInitialized) {
+    if (!isLiveStream() && !volumeInitialized) {
         volumeLog('Initial load: Not a live stream, cleaning up');
         volumeControlsObserver.disconnect();
     }
@@ -833,9 +842,8 @@ function handleNavigation() {
     
     // Wait for Angular to update the DOM before checking/observing
     setTimeout(() => {
-        // Check if we're now on a live stream
-        const isLive = document.querySelector('.broadcaster-is-online');
-        if (isLive) {
+        // Check if we're now on a live stream (requires multiple conditions)
+        if (isLiveStream()) {
             volumeLog('Live stream detected, reinitializing volume controls');
             
             volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
@@ -843,8 +851,7 @@ function handleNavigation() {
         } else {
             // Not immediately a live stream - start observer to watch for it
             liveStreamObserver = new MutationObserver(() => {
-                const isLive = document.querySelector('.broadcaster-is-online');
-                if (isLive) {
+                if (isLiveStream()) {
                     volumeLog('Live stream detected (via observer), reinitializing volume controls');
                     liveStreamObserver.disconnect();
                     liveStreamObserver = null;
@@ -863,8 +870,7 @@ function handleNavigation() {
             
             // Set timeout to clean up if still not a live stream
             liveStreamCheckTimeout = setTimeout(() => {
-                const stillLive = document.querySelector('.broadcaster-is-online');
-                if (!stillLive) {
+                if (!isLiveStream()) {
                     volumeLog('Not a live stream, cleaning up volume controls');
                     
                     if (liveStreamObserver) {
