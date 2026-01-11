@@ -12,6 +12,11 @@
   "content_scripts": [
     {
       "matches": ["https://www.younow.com/*", "https://younow.com/*"],
+      "js": ["js/features/filter-bypass/injector.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.younow.com/*", "https://younow.com/*"],
       "css": ["styles.css"],
       "js": [
         "js/config.js",
@@ -33,7 +38,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/golden-border-2.svg", "js/filter-bypass.js"],
+      "resources": ["assets/golden-border-2.svg", "js/features/filter-bypass/filter-bypass.js"],
       "matches": ["https://www.younow.com/*", "https://younow.com/*"]
     }
   ]

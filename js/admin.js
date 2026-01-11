@@ -56,11 +56,12 @@ async function fetchFilterBypassWordList() {
 }
 
 function injectFilterBypassScript() {
-    if (filterBypassInjected) return;
+    // Check if already injected by early injector or previous call
+    if (filterBypassInjected || window.__betternowFilterBypassInjected) return;
     
     // Inject the external script into page context
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('js/filter-bypass.js');
+    script.src = chrome.runtime.getURL('js/features/filter-bypass/filter-bypass.js');
     script.onload = function() {
         this.remove();
     };
@@ -70,9 +71,14 @@ function injectFilterBypassScript() {
 }
 
 async function sendWordListToPageContext() {
+    console.log('[BetterNow] sendWordListToPageContext called');
     const words = await fetchFilterBypassWordList();
+    console.log('[BetterNow] Fetched word list:', words?.length, 'words');
     if (words && words.length > 0) {
+        console.log('[BetterNow] Sending word list to page context');
         window.postMessage({ type: 'BETTERNOW_FILTER_WORDLIST', words: words }, '*');
+    } else {
+        console.warn('[BetterNow] No words to send');
     }
 }
 

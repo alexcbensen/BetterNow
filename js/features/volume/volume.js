@@ -1,17 +1,48 @@
 // ============ Volume Controls ============
 // Individual guest volume sliders and global volume multiplier
 
+// Debug logging - set to true for verbose output
+const VOLUME_DEBUG = true;
+
+function volumeLog(...args) {
+    if (VOLUME_DEBUG) {
+        console.log('[BetterNow Volume]', new Date().toISOString().substr(11, 12), ...args);
+    }
+}
+
+function volumeWarn(...args) {
+    // Warnings are always shown - for unexpected but recoverable situations
+    console.warn('[BetterNow Volume]', ...args);
+}
+
+function volumeError(...args) {
+    // Errors are always shown - for things that shouldn't happen
+    console.error('[BetterNow Volume]', ...args);
+}
+
 // Store volume states per video (keyed by username in toolbar)
 // Load from localStorage or initialize empty
-const guestVolumeStates = new Map(JSON.parse(localStorage.getItem('betternow-guest-volumes') || '[]'));
+let guestVolumeStates;
+try {
+    guestVolumeStates = new Map(JSON.parse(localStorage.getItem('betternow-guest-volumes') || '[]'));
+} catch (e) {
+    volumeError('Failed to load guest volume states from localStorage:', e);
+    guestVolumeStates = new Map();
+}
 
 function saveGuestVolumes() {
-    localStorage.setItem('betternow-guest-volumes', JSON.stringify([...guestVolumeStates]));
+    try {
+        localStorage.setItem('betternow-guest-volumes', JSON.stringify([...guestVolumeStates]));
+        volumeLog('Saved guest volumes:', Object.fromEntries(guestVolumeStates));
+    } catch (e) {
+        volumeError('Failed to save guest volumes:', e);
+    }
 }
 
 function getGuestUsername(tile) {
     const usernameEl = tile.querySelector('.username span');
-    return usernameEl ? usernameEl.textContent.trim() : null;
+    const username = usernameEl ? usernameEl.textContent.trim() : null;
+    return username;
 }
 
 // Create global volume slider for all guests
@@ -106,7 +137,7 @@ function createGlobalVolumeSlider() {
     const newMode = hasGuests ? 'multiplier' : 'broadcaster';
 
     if (currentMode !== newMode) {
-        console.log('[BetterNow] Volume slider mode switching:', currentMode, '→', newMode);
+        volumeLog('Mode switching:', currentMode, '→', newMode);
         volumeContainer.dataset.mode = newMode;
 
         // Remove old event listeners by cloning
@@ -127,23 +158,29 @@ function createGlobalVolumeSlider() {
             const currentVol = Math.round(broadcasterVideo.volume * 100);
             freshSlider.value = currentVol.toString();
             updateVolumeIcon(freshVolumeIcon, currentVol.toString());
+            volumeLog('Broadcaster mode: Initial volume:', currentVol);
 
             freshSlider.addEventListener('input', () => {
                 const vol = parseInt(freshSlider.value);
+                const oldVol = broadcasterVideo.volume;
                 broadcasterVideo.volume = vol / 100;
                 broadcasterVideo.muted = vol === 0;
                 updateVolumeIcon(freshVolumeIcon, freshSlider.value);
+                volumeLog('Broadcaster slider changed:', oldVol.toFixed(2), '→', (vol / 100).toFixed(2), '| muted:', broadcasterVideo.muted);
             });
 
             freshVolumeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (broadcasterVideo.muted || broadcasterVideo.volume === 0) {
+                const wasMuted = broadcasterVideo.muted || broadcasterVideo.volume === 0;
+                if (wasMuted) {
                     broadcasterVideo.muted = false;
                     broadcasterVideo.volume = 0.5;
                     freshSlider.value = '50';
+                    volumeLog('Broadcaster unmuted: volume → 0.50');
                 } else {
                     broadcasterVideo.muted = true;
                     freshSlider.value = '0';
+                    volumeLog('Broadcaster muted');
                 }
                 updateVolumeIcon(freshVolumeIcon, freshSlider.value);
             });
@@ -156,9 +193,12 @@ function createGlobalVolumeSlider() {
 
             freshSlider.value = globalMultiplier.toString();
             updateVolumeIcon(freshVolumeIcon, globalMultiplier.toString());
+            volumeLog('Multiplier mode: Initial multiplier:', globalMultiplier, '| lastNonZero:', lastNonZeroMultiplier);
 
             freshSlider.addEventListener('input', () => {
+                const oldMultiplier = globalMultiplier;
                 globalMultiplier = parseInt(freshSlider.value);
+                volumeLog('Global multiplier slider changed:', oldMultiplier, '→', globalMultiplier);
                 if (globalMultiplier > 0) {
                     lastNonZeroMultiplier = globalMultiplier;
                     localStorage.setItem('betternow-global-guest-last-multiplier', lastNonZeroMultiplier.toString());
@@ -170,14 +210,17 @@ function createGlobalVolumeSlider() {
 
             freshVolumeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                const oldMultiplier = globalMultiplier;
                 if (globalMultiplier === 0) {
                     globalMultiplier = lastNonZeroMultiplier;
                     freshSlider.value = globalMultiplier.toString();
+                    volumeLog('Global multiplier unmuted:', oldMultiplier, '→', globalMultiplier);
                 } else {
                     lastNonZeroMultiplier = globalMultiplier;
                     localStorage.setItem('betternow-global-guest-last-multiplier', lastNonZeroMultiplier.toString());
                     globalMultiplier = 0;
                     freshSlider.value = '0';
+                    volumeLog('Global multiplier muted:', oldMultiplier, '→ 0');
                 }
                 localStorage.setItem('betternow-global-guest-multiplier', globalMultiplier.toString());
                 updateVolumeIcon(freshVolumeIcon, freshSlider.value);
@@ -185,6 +228,7 @@ function createGlobalVolumeSlider() {
             });
 
             // Apply initial multiplier
+            volumeLog('Applying initial multiplier:', globalMultiplier);
             applyGlobalMultiplier(globalMultiplier);
         }
     }
@@ -201,17 +245,17 @@ function createGlobalVolumeSlider() {
 }
 
 function applyGlobalMultiplier(multiplier) {
+    volumeLog('applyGlobalMultiplier() called with:', multiplier);
+    
     // Protect against NaN or invalid values
     if (isNaN(multiplier) || multiplier < 0) {
-        console.warn('[BetterNow] applyGlobalMultiplier: Invalid multiplier value, defaulting to 100. Received:', multiplier);
+        volumeWarn('applyGlobalMultiplier: Invalid multiplier value, defaulting to 100. Received:', multiplier);
         multiplier = 100;
     }
     
-    console.log('[BetterNow] applyGlobalMultiplier called with:', multiplier);
-    
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
 
-    videoTiles.forEach(tile => {
+    videoTiles.forEach((tile, index) => {
         const videoElements = tile.querySelectorAll('video');
         const username = getGuestUsername(tile);
 
@@ -223,129 +267,154 @@ function applyGlobalMultiplier(multiplier) {
         // Apply multiplier to base volume
         const effectiveVolume = (baseVolume * multiplier) / 100;
 
+        volumeLog('applyGlobalMultiplier: Tile', index, '- User:', username, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
+
         // Apply to ALL videos in this tile
-        videoElements.forEach(v => {
+        videoElements.forEach((v, vIndex) => {
             v.volume = effectiveVolume / 100;
             v.muted = effectiveVolume === 0;
         });
-        
-        if (effectiveVolume === 0) {
-            console.log('[BetterNow] Muted guest:', username, '(baseVolume:', baseVolume, ', multiplier:', multiplier, ')');
-        }
     });
 }
 
 // Apply saved volumes to videos as early as possible
 function applyEarlyVolumes() {
+    // Skip if volume sliders already created (initVolumeControls already ran)
+    if (document.querySelector('.betternow-volume-slider')) return;
+    
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
-    // Protect against NaN or invalid values
-    if (isNaN(globalMultiplier) || globalMultiplier < 0) {
-        console.warn('[BetterNow] applyEarlyVolumes: Invalid globalMultiplier, defaulting to 100. Received:', globalMultiplier);
-        globalMultiplier = 100;
-    }
+    if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
     
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    if (videoTiles.length === 0) return;
 
-    videoTiles.forEach(tile => {
+    let appliedCount = 0;
+    videoTiles.forEach((tile) => {
         const username = getGuestUsername(tile);
-        // Get ALL video elements in this tile
         const videoElements = tile.querySelectorAll('video');
-
         if (videoElements.length === 0) return;
         
-        // Get base volume (individual setting or default 100)
-        const baseVolume = (username && guestVolumeStates.has(username))
-            ? guestVolumeStates.get(username)
-            : 100;
-
-        // Apply multiplier
+        const baseVolume = (username && guestVolumeStates.has(username)) ? guestVolumeStates.get(username) : 100;
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
 
-        // Apply to each video that hasn't been processed yet
-        videoElements.forEach(v => {
-            // Skip if this specific video already has volume applied
+        videoElements.forEach((v) => {
             if (v.dataset.volumeApplied) return;
             
-            // Skip the user's own tile (shows "You") to prevent echo
             if (username === 'You') {
                 v.muted = true;
-                v.dataset.volumeApplied = 'true';
-                return;
+            } else {
+                v.volume = effectiveVolume / 100;
+                v.muted = effectiveVolume === 0;
+                appliedCount++;
             }
-
-            v.volume = effectiveVolume / 100;
-            v.muted = effectiveVolume === 0;
             v.dataset.volumeApplied = 'true';
         });
     });
+    
+    if (appliedCount > 0) {
+        volumeLog('applyEarlyVolumes: Applied volume to', appliedCount, 'videos');
+    }
 }
 
-// Watch for video elements being added and apply volumes immediately
-let earlyVolumeTimeout = null;
-const earlyVolumeObserver = new MutationObserver(() => {
-    // Debounce to avoid excessive calls
-    clearTimeout(earlyVolumeTimeout);
-    earlyVolumeTimeout = setTimeout(applyEarlyVolumes, 50);
-});
+// Watch for guest join/leave - observe fullscreen-wrapper for video tile changes
+let guestChangeObserver = null;
+let lastVideoTileCount = 0;
 
-// Start observing as soon as possible
-if (document.body) {
-    earlyVolumeObserver.observe(document.body, { childList: true, subtree: true });
-} else {
-    document.addEventListener('DOMContentLoaded', () => {
-        earlyVolumeObserver.observe(document.body, { childList: true, subtree: true });
+function setupGuestChangeObserver() {
+    const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
+    if (!fullscreenWrapper || guestChangeObserver) return;
+    
+    volumeLog('setupGuestChangeObserver: Setting up observer on fullscreen-wrapper');
+    
+    guestChangeObserver = new MutationObserver((mutations) => {
+        // Check if video tiles were added or removed
+        let videoTileChanged = false;
+        
+        for (const mutation of mutations) {
+            if (mutation.type === 'childList') {
+                // Check added nodes for video tiles
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('video')) {
+                        volumeLog('guestChangeObserver: Video tile added');
+                        videoTileChanged = true;
+                        break;
+                    }
+                }
+                // Check removed nodes for video tiles
+                for (const node of mutation.removedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('video')) {
+                        volumeLog('guestChangeObserver: Video tile removed');
+                        videoTileChanged = true;
+                        break;
+                    }
+                }
+            }
+            if (videoTileChanged) break;
+        }
+        
+        if (videoTileChanged) {
+            const currentCount = document.querySelectorAll('.fullscreen-wrapper > .video').length;
+            volumeLog('guestChangeObserver: Video tile count changed:', lastVideoTileCount, '→', currentCount);
+            lastVideoTileCount = currentCount;
+            
+            // Reapply volumes after a short delay to let DOM settle
+            setTimeout(() => {
+                volumeLog('guestChangeObserver: Reapplying volumes after guest change');
+                reapplyAllGuestVolumes();
+                createVolumeSliders();
+                updateVolumeSliderVisibility();
+            }, 100);
+        }
     });
+    
+    guestChangeObserver.observe(fullscreenWrapper, { childList: true });
+    lastVideoTileCount = document.querySelectorAll('.fullscreen-wrapper > .video').length;
+    volumeLog('setupGuestChangeObserver: Initial video tile count:', lastVideoTileCount);
 }
 
-// Also run immediately and frequently at startup
+// Single early volume application at startup - observers handle the rest
+volumeLog('Running early volume application at startup');
 applyEarlyVolumes();
-setTimeout(applyEarlyVolumes, 100);
-setTimeout(applyEarlyVolumes, 250);
-setTimeout(applyEarlyVolumes, 500);
 
 function createVolumeSliders() {
-    // Find all video tiles (not the main broadcaster)
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
-
-    videoTiles.forEach(tile => {
+    if (videoTiles.length === 0) return;
+    
+    let createdCount = 0;
+    videoTiles.forEach((tile, index) => {
         // Skip if already has volume slider
         if (tile.querySelector('.betternow-volume-slider')) return;
 
-        // Find ALL video elements in this tile (there can be multiple with screenshare)
         const videoElements = tile.querySelectorAll('video');
         if (videoElements.length === 0) return;
 
-        // Get username for this tile to track volume state
         const username = getGuestUsername(tile);
         
-        // Skip the user's own tile (shows "You") to prevent echo
+        // Skip the user's own tile
         if (username === 'You') {
-            // Keep own audio muted on all videos
             videoElements.forEach(v => v.muted = true);
             return;
         }
 
-        // Find the toolbar overlay bottom (where the volume icon should go)
         const toolbarBottom = tile.querySelector('.video-overlay-bottom .toolbar__right');
         if (!toolbarBottom) return;
 
-        // Get global multiplier
         let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
-        // Protect against NaN or invalid values
         if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
 
-        // Restore saved base volume or default to 100
         let baseVolume = 100;
         if (username && guestVolumeStates.has(username)) {
             baseVolume = guestVolumeStates.get(username);
         }
 
-        // Apply multiplier for actual video volume to ALL videos in this tile
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
-        videoElements.forEach(videoEl => {
+        
+        videoElements.forEach((videoEl) => {
             videoEl.volume = effectiveVolume / 100;
             videoEl.muted = effectiveVolume === 0;
         });
+        
+        createdCount++;
 
         // Create volume container matching YouNow's structure
         const volumeContainer = document.createElement('div');
@@ -384,16 +453,20 @@ function createVolumeSliders() {
             let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
             if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
             const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+            const currentUsername = getGuestUsername(tile);
+
+            volumeLog('Individual slider changed for', currentUsername, '| baseVolume:', baseVolume, '| globalMultiplier:', globalMultiplier, '| effectiveVolume:', effectiveVolume);
 
             // Apply to all videos in this tile
-            tile.querySelectorAll('video').forEach(v => {
+            tile.querySelectorAll('video').forEach((v, vIndex) => {
+                const oldVol = v.volume;
                 v.volume = effectiveVolume / 100;
                 v.muted = effectiveVolume === 0;
+                volumeLog('Individual slider: Video', vIndex, '- volume:', oldVol.toFixed(2), '→', v.volume.toFixed(2), '| muted:', v.muted);
             });
             updateVolumeIcon(volumeIcon, slider.value);
 
             // Save base volume state
-            const currentUsername = getGuestUsername(tile);
             if (currentUsername) {
                 guestVolumeStates.set(currentUsername, baseVolume);
                 saveGuestVolumes();
@@ -407,30 +480,48 @@ function createVolumeSliders() {
             if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
             const videos = tile.querySelectorAll('video');
             const firstVideo = videos[0];
+            const currentUsername = getGuestUsername(tile);
 
             if (firstVideo && (firstVideo.muted || firstVideo.volume === 0)) {
-                const baseVolume = 50;
+                // Unmuting - restore previous volume or default to 100
+                const savedVolume = currentUsername && guestVolumeStates.has(currentUsername) 
+                    ? guestVolumeStates.get(currentUsername) 
+                    : 100;
+                // If saved volume was 0 (muted), restore to 100
+                const baseVolume = savedVolume > 0 ? savedVolume : 100;
                 const effectiveVolume = (baseVolume * globalMultiplier) / 100;
-                videos.forEach(v => {
+                volumeLog('Individual mute toggle: Unmuting', currentUsername, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
+                videos.forEach((v, vIndex) => {
                     v.muted = false;
                     v.volume = effectiveVolume / 100;
+                    volumeLog('Individual unmute: Video', vIndex, '- volume → ', v.volume.toFixed(2));
                 });
-                slider.value = '50';
+                slider.value = baseVolume.toString();
+                
+                // Save the restored volume
+                if (currentUsername) {
+                    guestVolumeStates.set(currentUsername, baseVolume);
+                    saveGuestVolumes();
+                }
             } else {
-                videos.forEach(v => {
+                // Muting - save current volume first, then mute
+                const currentVolume = parseInt(slider.value) || 100;
+                volumeLog('Individual mute toggle: Muting', currentUsername, '| saving volume:', currentVolume);
+                
+                // Save current volume before muting (so we can restore it)
+                if (currentUsername && currentVolume > 0) {
+                    guestVolumeStates.set(currentUsername, currentVolume);
+                    saveGuestVolumes();
+                }
+                
+                videos.forEach((v, vIndex) => {
                     v.muted = true;
                     v.volume = 0;
+                    volumeLog('Individual mute: Video', vIndex, '- muted');
                 });
                 slider.value = '0';
             }
             updateVolumeIcon(volumeIcon, slider.value);
-
-            // Save base volume state
-            const currentUsername = getGuestUsername(tile);
-            if (currentUsername) {
-                guestVolumeStates.set(currentUsername, parseInt(slider.value));
-                saveGuestVolumes();
-            }
         });
 
         // Show slider on hover over the volume control
@@ -515,26 +606,18 @@ function setupVolumeObserver() {
 
 function reapplyAllGuestVolumes() {
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
-    // Protect against NaN or invalid values
-    if (isNaN(globalMultiplier) || globalMultiplier < 0) {
-        console.warn('[BetterNow] reapplyAllGuestVolumes: Invalid globalMultiplier, defaulting to 100. Received:', globalMultiplier);
-        globalMultiplier = 100;
-    }
-    
-    console.log('[BetterNow] reapplyAllGuestVolumes called with multiplier:', globalMultiplier);
+    if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
     
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    if (videoTiles.length === 0) return;
 
-    videoTiles.forEach(tile => {
+    videoTiles.forEach((tile) => {
         const username = getGuestUsername(tile);
         const videoElements = tile.querySelectorAll('video');
         const slider = tile.querySelector('.betternow-volume-slider .slider');
         const volumeIcon = tile.querySelector('.betternow-volume-slider .volume__icon i');
 
-        if (videoElements.length === 0) return;
-        
-        // Skip if username not loaded yet
-        if (!username) return;
+        if (videoElements.length === 0 || !username) return;
         
         // Skip the user's own tile (shows "You") to prevent echo
         if (username === 'You') {
@@ -550,7 +633,7 @@ function reapplyAllGuestVolumes() {
         // Apply multiplier for actual video volume to ALL videos in tile
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
 
-        videoElements.forEach(v => {
+        videoElements.forEach((v) => {
             v.volume = effectiveVolume / 100;
             v.muted = effectiveVolume === 0;
         });
@@ -562,14 +645,21 @@ function reapplyAllGuestVolumes() {
 }
 
 // Initialize volume controls when DOM changes (instead of polling every second)
+let volumeInitialized = false;
+
 function initVolumeControls() {
+    volumeLog('initVolumeControls() called');
     setupVolumeObserver();
+    setupGuestChangeObserver();
     createVolumeSliders();
     updateVolumeSliderVisibility();
     createGlobalVolumeSlider();
+    volumeInitialized = true;
 }
 
-// Observer to detect when video player or toolbar appears
+// Observer to detect when video player appears
+let pendingInitTimeout = null;
+
 const volumeControlsObserver = new MutationObserver((mutations) => {
     let shouldInit = false;
     
@@ -578,9 +668,9 @@ const volumeControlsObserver = new MutationObserver((mutations) => {
         if (mutation.addedNodes.length > 0) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
-                    // Check if it's a video tile, toolbar, or contains them
-                    if (node.matches?.('.video, .fullscreen-wrapper, .toolbar, app-channel') ||
-                        node.querySelector?.('.video, .fullscreen-wrapper, .toolbar')) {
+                    // Only trigger for actual video-related elements
+                    if (node.matches?.('.video, .fullscreen-wrapper, app-channel, .video-player') ||
+                        node.querySelector?.('.video, .fullscreen-wrapper, .video-player')) {
                         shouldInit = true;
                         break;
                     }
@@ -591,22 +681,39 @@ const volumeControlsObserver = new MutationObserver((mutations) => {
     }
     
     if (shouldInit) {
-        // Debounce to avoid multiple rapid calls
-        clearTimeout(volumeControlsObserver.timeout);
-        volumeControlsObserver.timeout = setTimeout(initVolumeControls, 100);
+        // Debounce - cancel previous pending init and schedule new one
+        if (pendingInitTimeout) {
+            volumeLog('Observer: Debouncing (canceling previous pending init)');
+            clearTimeout(pendingInitTimeout);
+        }
+        volumeLog('Observer: Video element detected, scheduling init in 100ms');
+        pendingInitTimeout = setTimeout(() => {
+            pendingInitTimeout = null;
+            initVolumeControls();
+        }, 100);
     }
 });
 
-// Start observing
-if (document.body) {
-    volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
-} else {
-    document.addEventListener('DOMContentLoaded', () => {
+// Start observing once DOM is ready
+function startVolumeObserver() {
+    if (document.body) {
         volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
-    });
+        // Only run initial init if we haven't already
+        if (!volumeInitialized) {
+            initVolumeControls();
+        }
+    }
 }
 
-// Also run on initial load and navigation
-initVolumeControls();
-document.addEventListener('DOMContentLoaded', initVolumeControls);
-window.addEventListener('popstate', initVolumeControls); // Handle back/forward navigation
+volumeLog('Volume module initialized');
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startVolumeObserver);
+} else {
+    startVolumeObserver();
+}
+
+// Handle SPA navigation (back/forward buttons)
+window.addEventListener('popstate', () => {
+    volumeLog('popstate: Navigation detected');
+    initVolumeControls();
+});

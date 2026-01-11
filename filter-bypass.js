@@ -3,11 +3,7 @@
  */
 
 (function() {
-    // Prevent double injection
-    if (window.__betternowFilterBypassInjected) return;
-    window.__betternowFilterBypassInjected = true;
-    
-    console.log('[BetterNow Filter] Initialized');
+    console.log('[BetterNow Filter] Script loaded');
     
     const magicChar = String.fromCharCode(8203); // zero-width space
     
@@ -16,13 +12,14 @@
     let badWordsPattern = null;
     
     function updateWordList(words) {
+        console.log('[BetterNow Filter] updateWordList called with', words?.length, 'words');
         if (!words || !Array.isArray(words) || words.length === 0) {
             console.warn('[BetterNow Filter] Invalid word list received');
             return;
         }
         badWords = words;
         badWordsPattern = new RegExp('\\b(' + badWords.join('|') + ')\\b', 'gi');
-        console.log('[BetterNow Filter] Word list loaded:', words.length, 'words');
+        console.log('[BetterNow Filter] Word list updated, pattern created');
     }
     
     function obfuscateWord(word) {
@@ -52,7 +49,7 @@
                     const comment = params.get("comment");
                     if (comment) {
                         const obfuscated = obfuscateChatText(comment);
-                        console.log('[BetterNow Filter] Message obfuscated');
+                        console.log('[BetterNow Filter] Fetch intercepted - Original:', comment, '| Obfuscated:', obfuscated);
                         params.set("comment", obfuscated);
                         options = { ...options, body: params.toString() };
                     }
@@ -64,7 +61,7 @@
         return originalFetch.call(this, url, options);
     };
     
-    // Intercept XMLHttpRequest - only modify chat POST requests
+    // Intercept XMLHttpRequest - only modify chat comment POST requests
     const originalXHRSend = XMLHttpRequest.prototype.send;
     const originalXHROpen = XMLHttpRequest.prototype.open;
     
@@ -77,14 +74,14 @@
     XMLHttpRequest.prototype.send = function(data) {
         // Only intercept POST requests when bypass is enabled and we have words
         if (window.__betternowFilterBypass && badWordsPattern && this._betternowMethod && this._betternowMethod.toUpperCase() === 'POST' && typeof data === "string" && data.indexOf("comment=") >= 0) {
-            // Only modify if URL is SPECIFICALLY for posting chat
+            // Only modify if URL is for posting chat
             if (this._betternowUrl && this._betternowUrl.indexOf("/php/api/broadcast/chat") >= 0) {
                 try {
                     const params = new URLSearchParams(data);
                     const comment = params.get("comment");
                     if (comment) {
                         const obfuscated = obfuscateChatText(comment);
-                        console.log('[BetterNow Filter] Message obfuscated');
+                        console.log('[BetterNow Filter] XHR intercepted - Original:', comment, '| Obfuscated:', obfuscated);
                         params.set("comment", obfuscated);
                         data = params.toString();
                     }
@@ -99,14 +96,17 @@
     // Listen for messages from content script
     window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'BETTERNOW_FILTER_BYPASS') {
+            console.log('[BetterNow Filter] Received FILTER_BYPASS message, enabled:', event.data.enabled);
             window.__betternowFilterBypass = event.data.enabled;
         }
         // Receive word list from content script
         if (event.data && event.data.type === 'BETTERNOW_FILTER_WORDLIST') {
+            console.log('[BetterNow Filter] Received WORDLIST message with', event.data.words?.length, 'words');
             updateWordList(event.data.words);
         }
     });
     
     // Set initial state from localStorage
     window.__betternowFilterBypass = localStorage.getItem('betternow_chatFilterBypass') === 'true';
+    console.log('[BetterNow Filter] Initial state from localStorage:', window.__betternowFilterBypass);
 })();
