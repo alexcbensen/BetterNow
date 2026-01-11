@@ -36,8 +36,15 @@
     
     function obfuscateChatText(text) {
         // Only obfuscate if we have a word list loaded
-        if (!badWordsPattern) return text;
-        return text.replace(badWordsPattern, (match) => obfuscateWord(match));
+        if (!badWordsPattern) return { text, matched: [] };
+        
+        const matched = [];
+        const result = text.replace(badWordsPattern, (match) => {
+            matched.push(match);
+            return obfuscateWord(match);
+        });
+        
+        return { text: result, matched };
     }
     
     // Intercept fetch - only modify chat POST requests
@@ -51,10 +58,12 @@
                     const params = new URLSearchParams(options.body);
                     const comment = params.get("comment");
                     if (comment) {
-                        const obfuscated = obfuscateChatText(comment);
-                        console.log('[BetterNow Filter] Message obfuscated');
-                        params.set("comment", obfuscated);
-                        options = { ...options, body: params.toString() };
+                        const { text: obfuscated, matched } = obfuscateChatText(comment);
+                        if (matched.length > 0) {
+                            console.log('[BetterNow Filter] Message obfuscated. Matched words:', matched.join(', '));
+                            params.set("comment", obfuscated);
+                            options = { ...options, body: params.toString() };
+                        }
                     }
                 } catch (e) {
                     console.error('[BetterNow Filter] Fetch interception error:', e);
@@ -83,10 +92,12 @@
                     const params = new URLSearchParams(data);
                     const comment = params.get("comment");
                     if (comment) {
-                        const obfuscated = obfuscateChatText(comment);
-                        console.log('[BetterNow Filter] Message obfuscated');
-                        params.set("comment", obfuscated);
-                        data = params.toString();
+                        const { text: obfuscated, matched } = obfuscateChatText(comment);
+                        if (matched.length > 0) {
+                            console.log('[BetterNow Filter] Message obfuscated. Matched words:', matched.join(', '));
+                            params.set("comment", obfuscated);
+                            data = params.toString();
+                        }
                     }
                 } catch (e) {
                     console.error('[BetterNow Filter] XHR interception error:', e);
