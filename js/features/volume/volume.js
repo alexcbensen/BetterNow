@@ -2,7 +2,7 @@
 // Individual guest volume sliders and global volume multiplier
 
 // Debug logging - set to true for verbose output
-const VOLUME_DEBUG = true;
+const VOLUME_DEBUG = false;
 
 function volumeLog(...args) {
     if (VOLUME_DEBUG) {
