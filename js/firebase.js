@@ -110,8 +110,8 @@ function applyFirebaseSettings() {
         mySettings = firebaseSettings.mySettings;
     }
 
-    // Re-apply borders with new settings
-    applyBorders();
+    // Re-apply chat styles with new settings
+    applyChatStyles();
 }
 
 // Load settings on startup

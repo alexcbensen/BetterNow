@@ -79,14 +79,14 @@ const initInterval = setInterval(() => {
 function initializeExtension() {
     if (extensionDisabled) return;
     
-    applyBorders();
+    applyChatStyles();
     hideBroadcasters();
     hideCarouselBroadcasters();
 
-    // Apply borders after delays to catch late-loading messages
-    setTimeout(() => { if (!extensionDisabled) applyBorders(); }, 500);
-    setTimeout(() => { if (!extensionDisabled) applyBorders(); }, 1500);
-    setTimeout(() => { if (!extensionDisabled) applyBorders(); }, 3000);
+    // Apply chat styles after delays to catch late-loading messages
+    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 500);
+    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 1500);
+    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 3000);
 
     // ============ Observers ============
 
@@ -124,7 +124,7 @@ function initializeExtension() {
     });
     broadcasterObserver.observe(document.body, { childList: true, subtree: true });
 
-    // Watch for chat messages to apply borders instantly
+    // Watch for chat messages to apply styles instantly
     const chatContainerObserver = new MutationObserver(() => {
         if (extensionDisabled) return;
         observeChat();

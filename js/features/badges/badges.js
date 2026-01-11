@@ -9,12 +9,27 @@ function addDevBadgeToProfileModal() {
         // Check if we already added the text badge
         if (modal.querySelector('.betternow-dev-profile-badge')) return;
         
-        // Check if this is Alex's profile - the name is in h3 > p
-        const nameEl = modal.querySelector('h3 > p');
-        if (!nameEl) return;
+        // Check if this is a developer's profile - look for avatar URL with developer user ID
+        const avatarImg = modal.querySelector('.user-thumb img');
+        let isDev = false;
         
-        const profileName = nameEl.textContent.trim();
-        if (profileName !== myUsername) return;
+        if (avatarImg && avatarImg.src) {
+            const match = avatarImg.src.match(/\/(\d+)\/\d+\.jpg/);
+            if (match && DEVELOPER_USER_IDS.includes(match[1])) {
+                isDev = true;
+            }
+        }
+        
+        // Also check by username for backwards compatibility
+        const nameEl = modal.querySelector('h3 > p');
+        if (nameEl) {
+            const profileName = nameEl.textContent.trim();
+            if (profileName === myUsername) {
+                isDev = true;
+            }
+        }
+        
+        if (!isDev) return;
         
         // Add badge to the badge list (same as chat)
         const badgeList = modal.querySelector('user-badges .user-badge ul.badge-list');

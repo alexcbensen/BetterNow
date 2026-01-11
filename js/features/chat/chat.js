@@ -63,9 +63,56 @@ function applyGradientBorder(card, color1, color2) {
     card.appendChild(inner);
 }
 
-function applyBorders() {
+// Check if a user ID should get the developer badge
+function isDeveloper(userId) {
+    return DEVELOPER_USER_IDS.includes(String(userId));
+}
 
-    // Apply borders for my username
+// Get user ID from a chat message li element (extracts from avatar URL)
+function getUserIdFromChatMessage(li) {
+    const avatar = li.querySelector('app-user-thumb img');
+    if (avatar && avatar.src) {
+        const match = avatar.src.match(/\/(\d+)\/\d+\.jpg/);
+        if (match) return match[1];
+    }
+    return null;
+}
+
+// ============ Developer Badges ============
+// Apply developer badge to all developers in chat
+
+function applyDeveloperBadges() {
+    document.querySelectorAll('app-chat-list li').forEach(li => {
+        const userId = getUserIdFromChatMessage(li);
+        if (userId && isDeveloper(userId)) {
+            const userBadgeDiv = li.querySelector('user-badges .user-badge');
+            if (userBadgeDiv) {
+                const existingDevBadge = userBadgeDiv.querySelector('.betternow-dev-badge');
+                if (!existingDevBadge) {
+                    const badgeList = userBadgeDiv.querySelector('ul.badge-list');
+                    if (badgeList) {
+                        const devBadgeLi = document.createElement('li');
+                        devBadgeLi.className = 'ng-star-inserted';
+                        devBadgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+                        const devBadge = document.createElement('img');
+                        devBadge.src = 'https://cdn3.emoji.gg/emojis/1564-badge-developer.png';
+                        devBadge.className = 'betternow-dev-badge special-badges';
+                        devBadge.alt = 'Developer badge';
+                        devBadge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+                        devBadgeLi.appendChild(devBadge);
+                        badgeList.appendChild(devBadgeLi);
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ============ Chat Styles ============
+// Apply borders, level colors, name colors, and avatar frames
+
+function applyChatStyles() {
+    // Apply styles for my username (primary account)
     document.querySelectorAll(`span[title="${myUsername}"]`).forEach(span => {
         const li = span.closest('li');
         if (li && li.closest('app-chat-list')) {
@@ -95,7 +142,6 @@ function applyBorders() {
 
             const usernameSpan = li.querySelector(`span[title="${myUsername}"]`);
             if (usernameSpan && mySettings.textColor) {
-                // Always use the configured text color
                 usernameSpan.style.setProperty('color', mySettings.textColor, 'important');
             }
 
@@ -120,32 +166,10 @@ function applyBorders() {
                     avatarThumb.appendChild(borderImg);
                 }
             }
-
-            // Add developer badge
-            const userBadgeDiv = li.querySelector('user-badges .user-badge');
-            if (userBadgeDiv) {
-                const existingDevBadge = userBadgeDiv.querySelector('.betternow-dev-badge');
-                if (!existingDevBadge) {
-                    // Find the badge list (ul) that contains special badges
-                    const badgeList = userBadgeDiv.querySelector('ul.badge-list');
-                    if (badgeList) {
-                        const devBadgeLi = document.createElement('li');
-                        devBadgeLi.className = 'ng-star-inserted';
-                        devBadgeLi.style.cssText = 'display: inline-flex; align-items: center;';
-                        const devBadge = document.createElement('img');
-                        devBadge.src = 'https://cdn3.emoji.gg/emojis/1564-badge-developer.png';
-                        devBadge.className = 'betternow-dev-badge special-badges';
-                        devBadge.alt = 'Developer badge';
-                        devBadge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
-                        devBadgeLi.appendChild(devBadge);
-                        badgeList.appendChild(devBadgeLi);
-                    }
-                }
-            }
         }
     });
 
-    // Apply borders for friend usernames
+    // Apply styles for friend usernames
     friendUserIds.forEach(odiskd => {
         const userData = friendUsers[odiskd] || {};
         const username = userData.username;
@@ -175,7 +199,6 @@ function applyBorders() {
                 if (settings.textColor) {
                     const usernameSpan = li.querySelector(`span[title="${username}"]`);
                     if (usernameSpan) {
-                        // Always use the configured text color
                         usernameSpan.style.setProperty('color', settings.textColor, 'important');
                     }
                 }
@@ -184,7 +207,6 @@ function applyBorders() {
                 if (settings.levelEnabled && settings.levelColor1) {
                     const levelBadge = li.querySelector('app-user-level .user-level');
                     if (levelBadge) {
-                        // Use gradient if two colors provided, otherwise solid color
                         if (settings.levelColor2) {
                             levelBadge.style.background = `linear-gradient(115.62deg, ${settings.levelColor1} 17.43%, ${settings.levelColor2} 84.33%)`;
                         } else {
@@ -198,13 +220,16 @@ function applyBorders() {
             }
         });
     });
+
+    // Apply developer badges
+    applyDeveloperBadges();
 }
 
 function observeChat() {
     const chatContainer = document.querySelector('app-chat-list');
     if (chatContainer && !chatContainer.hasAttribute('data-observing')) {
         const chatObserver = new MutationObserver(() => {
-            applyBorders();
+            applyChatStyles();
         });
         chatObserver.observe(chatContainer, { childList: true, subtree: true });
         chatContainer.setAttribute('data-observing', 'true');

@@ -420,7 +420,7 @@ function openAdminPanel() {
             };
             
             await saveSettingsToFirebase();
-            applyBorders();
+            applyChatStyles();
             
             // Visual feedback
             btn.textContent = 'Saved!';
@@ -928,7 +928,7 @@ function renderFriendUsernames() {
             };
 
             await saveSettingsToFirebase();
-            applyBorders();
+            applyChatStyles();
 
             // Visual feedback
             btn.textContent = 'Saved!';
