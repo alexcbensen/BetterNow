@@ -5,7 +5,7 @@
 const VOLUME_DEBUG = false;
 
 // Timeout for checking if page is a live stream (ms)
-const LIVE_STREAM_CHECK_TIMEOUT = 2000;
+const LIVE_STREAM_CHECK_TIMEOUT = 1000;
 
 function volumeLog(...args) {
     if (VOLUME_DEBUG) {
@@ -26,11 +26,12 @@ function volumeError(...args) {
 // Check if current page is a live stream
 // Requires multiple conditions to prevent false positives during navigation
 function isLiveStream() {
+    const hasAppChannel = document.querySelector('app-channel') !== null;
     const hasOnlineClass = document.querySelector('.broadcaster-is-online') !== null;
     const hasFullscreenWrapper = document.querySelector('.fullscreen-wrapper') !== null;
     const hasVideoTiles = document.querySelectorAll('.fullscreen-wrapper > .video').length > 0;
     
-    return hasOnlineClass && hasFullscreenWrapper && hasVideoTiles;
+    return hasAppChannel && hasOnlineClass && hasFullscreenWrapper && hasVideoTiles;
 }
 
 // Store volume states per video (keyed by username in toolbar)
