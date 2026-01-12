@@ -1,0 +1,378 @@
+// ============ Presence System ============
+// Tracks online BetterNow users across the platform
+// Uses a single Firebase document for efficient reads
+
+const PRESENCE_DEBUG = false; // SET TO FALSE FOR PRODUCTION
+const PRESENCE_HEARTBEAT_MS = 60000; // 60 seconds
+const PRESENCE_STALE_MS = 120000; // 2 minutes = considered offline
+
+function presenceLog(...args) {
+    if (PRESENCE_DEBUG) {
+        console.log('[BetterNow Presence]', new Date().toISOString().substr(11, 12), ...args);
+    }
+}
+
+function presenceWarn(...args) {
+    console.warn('[BetterNow Presence]', ...args);
+}
+
+function presenceError(...args) {
+    console.error('[BetterNow Presence]', ...args);
+}
+
+// Module loaded log removed for production
+
+let presenceHeartbeatInterval = null;
+let lastPresenceUpdate = 0;
+
+// Cache the resolved username to avoid repeated API calls
+let cachedUsername = null;
+let cachedUsernameForId = null;
+
+// Get current stream info from URL
+function getCurrentStreamInfo() {
+    const path = window.location.pathname;
+    const match = path.match(/^\/([^\/]+)/);
+
+    if (!match) return { stream: null, url: null };
+
+    const streamName = match[1].toLowerCase();
+
+    // Exclude non-stream pages
+    if (['explore', 'moments', 'settings', 'inbox', ''].includes(streamName)) {
+        return { stream: null, url: null };
+    }
+
+    return {
+        stream: streamName,
+        url: path
+    };
+}
+
+// Update user's presence in Firebase
+async function updatePresence() {
+    presenceLog('updatePresence() called');
+
+    // Don't update if extension is disabled or no user ID
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
+        presenceLog('updatePresence: Skipped - extension disabled');
+        return;
+    }
+    if (!currentUserId) {
+        presenceLog('updatePresence: Skipped - no currentUserId');
+        return;
+    }
+
+    const now = Date.now();
+    const streamInfo = getCurrentStreamInfo();
+
+    // Get username - priority:
+    // 1. Cached username (if same user ID)
+    // 2. Profile dropdown (if visible)
+    // 3. Fetch from YouNow API (once, then cache)
+    let username = null;
+
+    // Check cache first
+    if (cachedUsername && cachedUsernameForId === currentUserId) {
+        username = cachedUsername;
+        presenceLog('updatePresence: Using cached username:', username);
+    }
+
+    // Try profile dropdown
+    if (!username) {
+        const usernameEl = document.querySelector('app-profile-dropdown .username');
+        if (usernameEl && usernameEl.textContent.trim()) {
+            username = usernameEl.textContent.trim();
+            cachedUsername = username;
+            cachedUsernameForId = currentUserId;
+            presenceLog('updatePresence: Got username from dropdown:', username);
+        }
+    }
+
+    // Fetch from API if still no username
+    if (!username) {
+        presenceLog('updatePresence: Fetching username from YouNow API...');
+        try {
+            const response = await fetch(`https://cdn.younow.com/php/api/channel/getInfo/channelId=${currentUserId}`);
+            const data = await response.json();
+            if (data.profile) {
+                username = data.profile;
+                cachedUsername = username;
+                cachedUsernameForId = currentUserId;
+                presenceLog('updatePresence: Got username from API:', username);
+            }
+        } catch (e) {
+            presenceWarn('updatePresence: Failed to fetch username from API:', e);
+        }
+    }
+
+    // Final fallback
+    if (!username) {
+        username = `User${currentUserId}`;
+        presenceLog('updatePresence: Using fallback username:', username);
+    }
+
+    // Firestore field names can't start with a number, so prefix with 'u'
+    const odiskdKey = `u${currentUserId}`;
+
+    // Build presence data
+    const presenceData = {
+        odiskd: currentUserId,
+        username: username,
+        avatar: `https://ynassets.younow.com/user/live/${currentUserId}/${currentUserId}.jpg`,
+        stream: streamInfo.stream,
+        streamUrl: streamInfo.url,
+        lastSeen: now
+    };
+
+    presenceLog('updatePresence: Sending data:', presenceData);
+    presenceLog('updatePresence: Using field key:', odiskdKey);
+
+    try {
+        // Use PATCH to update just this user's entry in the presence map
+        const url = `${FIRESTORE_BASE_URL}/presence/online?updateMask.fieldPaths=${odiskdKey}`;
+        presenceLog('updatePresence: PATCH to', url);
+
+        const response = await fetch(
+            url,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fields: {
+                        [odiskdKey]: {
+                            mapValue: {
+                                fields: {
+                                    odiskd: { stringValue: presenceData.odiskd },
+                                    username: { stringValue: presenceData.username },
+                                    avatar: { stringValue: presenceData.avatar },
+                                    stream: { stringValue: presenceData.stream || '' },
+                                    streamUrl: { stringValue: presenceData.streamUrl || '' },
+                                    lastSeen: { integerValue: presenceData.lastSeen }
+                                }
+                            }
+                        }
+                    }
+                })
+            }
+        );
+
+        if (response.ok) {
+            lastPresenceUpdate = now;
+            presenceLog('updatePresence: SUCCESS - response status:', response.status);
+
+            // Signal that presence is ready (first successful write)
+            if (!window.presenceReady) {
+                window.presenceReady = true;
+                presenceLog('updatePresence: presenceReady flag set to true');
+            }
+        } else {
+            const errorText = await response.text();
+            presenceWarn('updatePresence: FAILED - status:', response.status, 'body:', errorText);
+        }
+    } catch (e) {
+        presenceError('updatePresence: ERROR:', e);
+    }
+}
+
+// Remove user's presence from Firebase (on page unload)
+async function removePresence() {
+    if (!currentUserId) return;
+
+    // Firestore field names can't start with a number, so prefix with 'u'
+    const odiskdKey = `u${currentUserId}`;
+
+    presenceLog('Removing presence for:', currentUserId, '(key:', odiskdKey + ')');
+
+    try {
+        // Set lastSeen to 0 to mark as offline (will be filtered out)
+        await fetch(
+            `${FIRESTORE_BASE_URL}/presence/online?updateMask.fieldPaths=${odiskdKey}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fields: {
+                        [odiskdKey]: {
+                            mapValue: {
+                                fields: {
+                                    lastSeen: { integerValue: 0 }
+                                }
+                            }
+                        }
+                    }
+                })
+            }
+        );
+    } catch (e) {
+        // Ignore errors on unload
+    }
+}
+
+// Fetch all online users (admin only)
+async function fetchOnlineUsers() {
+    presenceLog('fetchOnlineUsers() called');
+
+    try {
+        const url = `${FIRESTORE_BASE_URL}/presence/online`;
+        presenceLog('fetchOnlineUsers: GET', url);
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                presenceLog('fetchOnlineUsers: Document does not exist yet (404)');
+                return [];
+            }
+            presenceWarn('fetchOnlineUsers: FAILED - status:', response.status);
+            return [];
+        }
+
+        const data = await response.json();
+        presenceLog('fetchOnlineUsers: Raw response:', data);
+
+        const now = Date.now();
+        const users = [];
+
+        if (data.fields) {
+            presenceLog('fetchOnlineUsers: Found', Object.keys(data.fields).length, 'entries in document');
+
+            for (const [fieldKey, value] of Object.entries(data.fields)) {
+                // Field keys are prefixed with 'u', e.g. 'u60974148'
+                // The actual odiskd is stored inside the map
+                if (value.mapValue && value.mapValue.fields) {
+                    const fields = value.mapValue.fields;
+                    const lastSeen = parseInt(fields.lastSeen?.integerValue) || 0;
+                    const age = now - lastSeen;
+                    const odiskd = fields.odiskd?.stringValue || fieldKey.replace(/^u/, '');
+
+                    presenceLog(`fetchOnlineUsers: User ${odiskd} (key: ${fieldKey}) - lastSeen ${age}ms ago, stale threshold: ${PRESENCE_STALE_MS}ms`);
+
+                    // Filter out stale users (offline for more than PRESENCE_STALE_MS)
+                    if (age < PRESENCE_STALE_MS) {
+                        users.push({
+                            odiskd: odiskd,
+                            username: fields.username?.stringValue || 'Unknown',
+                            avatar: fields.avatar?.stringValue || '',
+                            stream: fields.stream?.stringValue || null,
+                            streamUrl: fields.streamUrl?.stringValue || null,
+                            lastSeen: lastSeen
+                        });
+                        presenceLog(`fetchOnlineUsers: User ${fields.username?.stringValue || odiskd} is ONLINE`);
+                    } else {
+                        presenceLog(`fetchOnlineUsers: User ${fields.username?.stringValue || odiskd} is STALE (${Math.round(age/1000)}s old)`);
+                    }
+                }
+            }
+        } else {
+            presenceLog('fetchOnlineUsers: No fields in document');
+        }
+
+        // Sort by lastSeen (most recent first)
+        users.sort((a, b) => b.lastSeen - a.lastSeen);
+
+        presenceLog('fetchOnlineUsers: Returning', users.length, 'online users:', users.map(u => u.username));
+        return users;
+
+    } catch (e) {
+        presenceError('fetchOnlineUsers: ERROR:', e);
+        return [];
+    }
+}
+
+// Start presence heartbeat
+function startPresenceHeartbeat() {
+    // Don't start if extension is disabled
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
+        presenceLog('startPresenceHeartbeat: Skipped - extension disabled');
+        return;
+    }
+
+    presenceLog('startPresenceHeartbeat: Starting heartbeat system');
+    presenceLog('startPresenceHeartbeat: Heartbeat interval:', PRESENCE_HEARTBEAT_MS, 'ms');
+    presenceLog('startPresenceHeartbeat: Stale threshold:', PRESENCE_STALE_MS, 'ms');
+
+    // Initial update
+    presenceLog('startPresenceHeartbeat: Sending initial presence update');
+    updatePresence();
+
+    // Heartbeat interval
+    presenceHeartbeatInterval = setInterval(() => {
+        presenceLog('startPresenceHeartbeat: Heartbeat tick');
+        updatePresence();
+    }, PRESENCE_HEARTBEAT_MS);
+
+    // Update on visibility change (tab becomes visible)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            presenceLog('startPresenceHeartbeat: Tab became visible, updating presence');
+            updatePresence();
+        }
+    });
+
+    // Update on navigation (SPA)
+    window.addEventListener('betternow:navigation', () => {
+        presenceLog('startPresenceHeartbeat: Navigation detected, updating presence in 500ms');
+        setTimeout(updatePresence, 500); // Delay to let URL update
+    });
+
+    // Remove presence on page unload
+    window.addEventListener('beforeunload', () => {
+        presenceLog('startPresenceHeartbeat: Page unloading, removing presence');
+        removePresence();
+    });
+
+    presenceLog('startPresenceHeartbeat: All event listeners attached');
+}
+
+// Stop presence heartbeat
+function stopPresenceHeartbeat() {
+    presenceLog('stopPresenceHeartbeat: Stopping heartbeat');
+    if (presenceHeartbeatInterval) {
+        clearInterval(presenceHeartbeatInterval);
+        presenceHeartbeatInterval = null;
+    }
+}
+
+// Initialize presence system after user is detected
+function initPresence() {
+    presenceLog('initPresence: Starting initialization');
+    presenceLog('initPresence: currentUserId =', typeof currentUserId !== 'undefined' ? currentUserId : 'undefined');
+    presenceLog('initPresence: extensionDisabled =', typeof extensionDisabled !== 'undefined' ? extensionDisabled : 'undefined');
+
+    // Wait for currentUserId to be set
+    let attempts = 0;
+    const checkInterval = setInterval(() => {
+        attempts++;
+
+        if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
+            presenceLog('initPresence: Extension disabled, aborting');
+            clearInterval(checkInterval);
+            return;
+        }
+
+        if (currentUserId) {
+            presenceLog('initPresence: currentUserId found after', attempts, 'attempts:', currentUserId);
+            clearInterval(checkInterval);
+            startPresenceHeartbeat();
+        } else if (attempts % 10 === 0) {
+            presenceLog('initPresence: Waiting for currentUserId... attempt', attempts);
+        }
+    }, 500);
+
+    // Timeout after 30 seconds
+    setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!currentUserId) {
+            presenceWarn('initPresence: Timed out waiting for currentUserId after 30s');
+        }
+    }, 30000);
+}
+
+// Start initialization
+presenceLog('initPresence: Scheduling initialization');
+initPresence();

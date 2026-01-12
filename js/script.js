@@ -142,14 +142,14 @@ const initInterval = setInterval(() => {
 function initializeExtension() {
     if (extensionDisabled) return;
 
-    applyChatStyles();
+    // NOTE: applyChatStyles is NOT called here because presence won't be ready yet
+    // The active-users.js module will call it after fetching online users
+
     hideBroadcasters();
     hideCarouselBroadcasters();
 
-    // Apply chat styles after delays to catch late-loading messages
-    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 500);
-    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 1500);
-    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 3000);
+    // REMOVED: Multiple delayed applyChatStyles calls
+    // The chat observer with throttling handles updates now
 
     // ============ Observers ============
 

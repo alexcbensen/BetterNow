@@ -356,6 +356,28 @@ function openAdminPanel() {
     renderFriendUsernames();
     renderHiddenBroadcasters();
 
+    // Setup Online Users section (fetches count immediately)
+    setupOnlineUsersSection();
+
+    // Friend Usernames dropdown toggle
+    const friendToggle = document.getElementById('friend-usernames-toggle');
+    const friendContent = document.getElementById('friend-usernames-content');
+    const friendArrow = document.getElementById('friend-usernames-arrow');
+
+    if (friendToggle && friendContent && friendArrow) {
+        friendToggle.addEventListener('click', () => {
+            const isHidden = friendContent.style.display === 'none';
+            friendContent.style.display = isHidden ? 'block' : 'none';
+            friendArrow.textContent = isHidden ? '▼' : '▶';
+        });
+    }
+
+    // Update friend count badge
+    const friendCountEl = document.getElementById('friend-usernames-count');
+    if (friendCountEl) {
+        friendCountEl.textContent = friendUserIds.length;
+    }
+
     // Hidden broadcasters dropdown toggle
     const hiddenToggle = document.getElementById('hidden-broadcasters-toggle');
     const hiddenContent = document.getElementById('hidden-broadcasters-content');
@@ -495,9 +517,159 @@ function openAdminPanel() {
         });
     }
 
+    // BetterNow User Style toggle
+    const betternowStyleToggle = document.getElementById('betternow-style-toggle');
+    const betternowStyleContent = document.getElementById('betternow-style-content');
+    const betternowStyleArrow = document.getElementById('betternow-style-arrow');
+
+    if (betternowStyleToggle && betternowStyleContent && betternowStyleArrow) {
+        betternowStyleToggle.addEventListener('click', () => {
+            const isHidden = betternowStyleContent.style.display === 'none';
+            betternowStyleContent.style.display = isHidden ? 'block' : 'none';
+            betternowStyleArrow.textContent = isHidden ? '▼' : '▶';
+        });
+
+        // Populate BetterNow style fields
+        const badgeUrlInput = document.getElementById('betternow-badge-url');
+        const textColorInput = document.getElementById('betternow-text-color');
+        const glowColorInput = document.getElementById('betternow-glow-color');
+        const glowIntensityInput = document.getElementById('betternow-glow-intensity');
+        const glowOpacityInput = document.getElementById('betternow-glow-opacity');
+        const intensityValueSpan = document.getElementById('betternow-intensity-value');
+        const opacityValueSpan = document.getElementById('betternow-opacity-value');
+        const badgePreviewImg = document.getElementById('betternow-badge-preview-img');
+        const previewBadgeIcon = document.getElementById('betternow-preview-badge-icon');
+        const textPreview = document.getElementById('betternow-text-preview');
+        const glowPreview = document.getElementById('betternow-glow-preview');
+        const livePreview = document.getElementById('betternow-live-preview');
+
+        // Set initial values - ensure sliders are set correctly
+        badgeUrlInput.value = betternowUserStyle.badgeUrl || '';
+        textColorInput.value = betternowUserStyle.textColor || '#e0c2f3';
+        glowColorInput.value = betternowUserStyle.glowColor || '#820ad0';
+
+        // Set slider values with proper defaults
+        const savedIntensity = (typeof betternowUserStyle.glowIntensity === 'number') ? betternowUserStyle.glowIntensity : 6;
+        const savedOpacity = (typeof betternowUserStyle.glowOpacity === 'number') ? betternowUserStyle.glowOpacity : 100;
+
+        glowIntensityInput.value = savedIntensity;
+        glowOpacityInput.value = savedOpacity;
+        intensityValueSpan.textContent = savedIntensity + 'px';
+        opacityValueSpan.textContent = savedOpacity + '%';
+
+        // Helper to convert hex to rgba
+        const hexToRgba = (hex, alpha) => {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
+        // Update previews with initial values
+        const updateLivePreview = () => {
+            const textColor = normalizeHex(textColorInput.value) || '#e0c2f3';
+            const glowColor = normalizeHex(glowColorInput.value) || '#820ad0';
+            const intensity = parseInt(glowIntensityInput.value);
+            const opacity = parseInt(glowOpacityInput.value) / 100;
+            const halfIntensity = Math.round(intensity / 2);
+
+            livePreview.style.color = textColor;
+
+            if (intensity === 0 || opacity === 0) {
+                livePreview.style.textShadow = 'none';
+            } else {
+                const glowColorWithOpacity = hexToRgba(glowColor, opacity);
+                livePreview.style.textShadow = `0 0 ${halfIntensity}px ${glowColorWithOpacity}, 0 0 ${intensity}px ${glowColorWithOpacity}`;
+            }
+        };
+
+        // Update badge in both preview locations
+        const updateBadgePreview = (url) => {
+            const defaultUrl = chrome.runtime.getURL('assets/badges/verified.svg');
+            const badgeSrc = url || defaultUrl;
+            badgePreviewImg.src = badgeSrc;
+            if (previewBadgeIcon) previewBadgeIcon.src = badgeSrc;
+        };
+
+        // Badge preview - set initial
+        if (betternowUserStyle.badgeUrl) {
+            updateBadgePreview(betternowUserStyle.badgeUrl);
+        } else {
+            updateBadgePreview('');
+        }
+
+        // Color previews
+        const initTextColor = normalizeHex(textColorInput.value);
+        const initGlowColor = normalizeHex(glowColorInput.value);
+        if (/^#[0-9A-Fa-f]{6}$/.test(initTextColor)) {
+            textPreview.style.background = initTextColor;
+        }
+        if (/^#[0-9A-Fa-f]{6}$/.test(initGlowColor)) {
+            glowPreview.style.background = initGlowColor;
+        }
+        updateLivePreview();
+
+        // Badge URL input handler
+        badgeUrlInput.addEventListener('input', () => {
+            updateBadgePreview(badgeUrlInput.value.trim());
+        });
+
+        // Text color input handler
+        textColorInput.addEventListener('input', () => {
+            const val = normalizeHex(textColorInput.value);
+            if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                textPreview.style.background = val;
+            }
+            updateLivePreview();
+        });
+
+        // Glow color input handler
+        glowColorInput.addEventListener('input', () => {
+            const val = normalizeHex(glowColorInput.value);
+            if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                glowPreview.style.background = val;
+            }
+            updateLivePreview();
+        });
+
+        // Glow intensity slider handler
+        glowIntensityInput.addEventListener('input', () => {
+            const intensity = parseInt(glowIntensityInput.value);
+            intensityValueSpan.textContent = intensity + 'px';
+            updateLivePreview();
+        });
+
+        // Glow opacity slider handler
+        glowOpacityInput.addEventListener('input', () => {
+            const opacity = parseInt(glowOpacityInput.value);
+            opacityValueSpan.textContent = opacity + '%';
+            updateLivePreview();
+        });
+
+        // Save button handler
+        document.getElementById('save-betternow-style').addEventListener('click', async () => {
+            const btn = document.getElementById('save-betternow-style');
+
+            betternowUserStyle = {
+                badgeUrl: badgeUrlInput.value.trim(),
+                textColor: normalizeHex(textColorInput.value.trim()) || '#e0c2f3',
+                glowColor: normalizeHex(glowColorInput.value.trim()) || '#820ad0',
+                glowIntensity: parseInt(glowIntensityInput.value),
+                glowOpacity: parseInt(glowOpacityInput.value)
+            };
+
+            await saveSettingsToFirebase();
+
+            // Visual feedback
+            btn.textContent = 'Saved!';
+            setTimeout(() => { btn.textContent = 'Save Style'; }, 1000);
+        });
+    }
+
     // Close button
     const closeBtn = document.getElementById('admin-panel-close');
     closeBtn.addEventListener('click', () => {
+        cleanupOnlineUsersSection();
         document.body.style.overflow = '';
         overlay.remove();
     });
@@ -508,6 +680,7 @@ function openAdminPanel() {
         firebaseIdToken = null;
         sessionStorage.removeItem('firebaseIdToken');
         updateAdminIcon();
+        cleanupOnlineUsersSection();
         document.body.style.overflow = '';
         overlay.remove();
     });
@@ -639,6 +812,7 @@ function openAdminPanel() {
     // Click outside to close
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
+            cleanupOnlineUsersSection();
             document.body.style.overflow = '';
             overlay.remove();
         }

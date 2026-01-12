@@ -1,5 +1,7 @@
 // ============ Chat Styling ============
-// Friend borders, dev badges, light mode fixes, username coloring
+// Friend borders, dev badges, BetterNow user badges, light mode fixes, username coloring
+
+const BETTERNOW_USER_BADGE_URL = chrome.runtime.getURL('assets/badges/verified.svg');
 
 function isLightMode() {
     // Check for data-theme="light" attribute on any element (usually html or body)
@@ -68,6 +70,19 @@ function isDeveloper(userId) {
     return DEVELOPER_USER_IDS.includes(String(userId));
 }
 
+// Check if a user ID is online with BetterNow (from presence system)
+function isOnlineWithBetterNow(userId) {
+    // Check window global (set by active-users.js)
+    if (typeof window.onlineBetterNowUserIds !== 'undefined' && window.onlineBetterNowUserIds instanceof Set) {
+        return window.onlineBetterNowUserIds.has(String(userId));
+    }
+    // Fallback to local variable if exists
+    if (typeof onlineBetterNowUserIds !== 'undefined' && onlineBetterNowUserIds instanceof Set) {
+        return onlineBetterNowUserIds.has(String(userId));
+    }
+    return false;
+}
+
 // Get user ID from a chat message li element (extracts from avatar URL)
 function getUserIdFromChatMessage(li) {
     const avatar = li.querySelector('app-user-thumb img');
@@ -85,25 +100,124 @@ function applyDeveloperBadges() {
     document.querySelectorAll('app-chat-list li').forEach(li => {
         const userId = getUserIdFromChatMessage(li);
         if (userId && isDeveloper(userId)) {
-            const userBadgeDiv = li.querySelector('user-badges .user-badge');
-            if (userBadgeDiv) {
-                const existingDevBadge = userBadgeDiv.querySelector('.betternow-dev-badge');
-                if (!existingDevBadge) {
-                    const badgeList = userBadgeDiv.querySelector('ul.badge-list');
-                    if (badgeList) {
-                        const devBadgeLi = document.createElement('li');
-                        devBadgeLi.className = 'ng-star-inserted';
-                        devBadgeLi.style.cssText = 'display: inline-flex; align-items: center;';
-                        const devBadge = document.createElement('img');
-                        devBadge.src = 'https://cdn3.emoji.gg/emojis/1564-badge-developer.png';
-                        devBadge.className = 'betternow-dev-badge special-badges';
-                        devBadge.alt = 'Developer badge';
-                        devBadge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
-                        devBadgeLi.appendChild(devBadge);
-                        badgeList.appendChild(devBadgeLi);
-                    }
+            // First check if badge already exists
+            if (li.querySelector('.betternow-dev-badge')) return;
+
+            // Try to find existing badge list
+            let badgeList = li.querySelector('user-badges .user-badge ul.badge-list');
+
+            // If no badge wrapper exists (user has no native badges), create one
+            if (!badgeList) {
+                const header = li.querySelector('.user-card__header');
+                if (!header) return;
+
+                // Check if there's already a user-badges-wrapper
+                let badgesWrapper = header.querySelector('.user-badges-wrapper');
+                if (!badgesWrapper) {
+                    // Create the full badge structure
+                    badgesWrapper = document.createElement('div');
+                    badgesWrapper.className = 'user-badges-wrapper ng-star-inserted';
+                    badgesWrapper.innerHTML = `
+                        <user-badges>
+                            <div class="user-badge is-small">
+                                <ul class="badge-list ng-star-inserted"></ul>
+                            </div>
+                        </user-badges>
+                    `;
+                    // Insert at the beginning of the header
+                    header.insertBefore(badgesWrapper, header.firstChild);
                 }
+
+                badgeList = badgesWrapper.querySelector('ul.badge-list');
             }
+
+            if (badgeList && !badgeList.querySelector('.betternow-dev-badge')) {
+                const devBadgeLi = document.createElement('li');
+                devBadgeLi.className = 'ng-star-inserted';
+                devBadgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+                const devBadge = document.createElement('img');
+                devBadge.src = 'https://cdn3.emoji.gg/emojis/1564-badge-developer.png';
+                devBadge.className = 'betternow-dev-badge special-badges';
+                devBadge.alt = 'BetterNow Developer';
+                devBadge.title = 'BetterNow Developer';
+                devBadge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+                devBadgeLi.appendChild(devBadge);
+                badgeList.appendChild(devBadgeLi);
+            }
+        }
+    });
+}
+
+// ============ BetterNow User Badges ============
+// Apply LIT badge to users who are online with BetterNow
+
+function applyBetterNowUserBadges() {
+    const onlineUsers = window.onlineBetterNowUserIds || [];
+
+    document.querySelectorAll('app-chat-list li').forEach(li => {
+        const userId = getUserIdFromChatMessage(li);
+        if (!userId) return;
+
+        // Skip if user is not online with BetterNow
+        if (!isOnlineWithBetterNow(userId)) return;
+
+        // Skip admin/developer accounts (they get developer badge instead)
+        if (typeof ADMIN_USER_IDS !== 'undefined' && ADMIN_USER_IDS.includes(userId)) {
+            return;
+        }
+
+        // Skip if badge already exists
+        if (li.querySelector('.betternow-user-badge')) {
+            return;
+        }
+
+        // Try to find existing badge list
+        let badgeList = li.querySelector('user-badges .user-badge ul.badge-list');
+
+        // If no badge wrapper exists (user has no native badges), create one
+        if (!badgeList) {
+            const header = li.querySelector('.user-card__header');
+            if (!header) return;
+
+            // Check if there's already a user-badges-wrapper
+            let badgesWrapper = header.querySelector('.user-badges-wrapper');
+            if (!badgesWrapper) {
+                // Create the full badge structure
+                badgesWrapper = document.createElement('div');
+                badgesWrapper.className = 'user-badges-wrapper ng-star-inserted';
+                badgesWrapper.innerHTML = `
+                    <user-badges>
+                        <div class="user-badge is-small">
+                            <ul class="badge-list ng-star-inserted"></ul>
+                        </div>
+                    </user-badges>
+                `;
+                // Insert at the beginning of the header
+                header.insertBefore(badgesWrapper, header.firstChild);
+            }
+
+            badgeList = badgesWrapper.querySelector('ul.badge-list');
+        }
+
+        if (badgeList && !badgeList.querySelector('.betternow-user-badge')) {
+            const badgeLi = document.createElement('li');
+            badgeLi.className = 'ng-star-inserted';
+            badgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+            const badge = document.createElement('img');
+
+            // Use custom badge URL from settings, or default to local asset
+            if (typeof betternowUserStyle !== 'undefined' && betternowUserStyle.badgeUrl) {
+                badge.src = betternowUserStyle.badgeUrl;
+            } else {
+                badge.src = BETTERNOW_USER_BADGE_URL;
+            }
+
+            badge.className = 'betternow-user-badge special-badges';
+            badge.alt = 'BetterNow User';
+            badge.title = 'BetterNow User';
+            badge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+            badgeLi.appendChild(badge);
+            badgeList.appendChild(badgeLi);
         }
     });
 }
@@ -223,13 +337,29 @@ function applyChatStyles() {
 
     // Apply developer badges
     applyDeveloperBadges();
+
+    // Apply BetterNow user badges
+    applyBetterNowUserBadges();
+}
+
+// Throttle applyChatStyles to prevent excessive calls
+let chatStylesThrottleTimer = null;
+const CHAT_STYLES_THROTTLE_MS = 250; // Max once per 250ms
+
+function throttledApplyChatStyles() {
+    if (chatStylesThrottleTimer) return; // Already scheduled
+
+    chatStylesThrottleTimer = setTimeout(() => {
+        chatStylesThrottleTimer = null;
+        applyChatStyles();
+    }, CHAT_STYLES_THROTTLE_MS);
 }
 
 function observeChat() {
     const chatContainer = document.querySelector('app-chat-list');
     if (chatContainer && !chatContainer.hasAttribute('data-observing')) {
         const chatObserver = new MutationObserver(() => {
-            applyChatStyles();
+            throttledApplyChatStyles();
         });
         chatObserver.observe(chatContainer, { childList: true, subtree: true });
         chatContainer.setAttribute('data-observing', 'true');

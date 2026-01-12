@@ -40,6 +40,16 @@ let friendSettings = {};
 // Format: { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00", frameEnabled: true, frameUrl: "https://..." }
 let mySettings = {};
 
+// BetterNow User badge/text styling (admin customizable)
+// Format: { badgeUrl: "https://...", textColor: "#e0c2f3", glowColor: "#820ad0", glowIntensity: 6, glowOpacity: 100 }
+let betternowUserStyle = {
+    badgeUrl: '',  // Empty = use default local asset
+    textColor: '#e0c2f3',
+    glowColor: '#820ad0',
+    glowIntensity: 6,  // Glow blur radius in pixels (0-10)
+    glowOpacity: 100   // Glow opacity percentage (0-100)
+};
+
 // Granted features - which features each user has access to (keyed by odiskd)
 // Format: { "userId": ["filterBypass", "otherFeature"] }
 let grantedFeatures = {};

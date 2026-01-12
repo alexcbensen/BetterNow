@@ -109,6 +109,20 @@ function applyFirebaseSettings() {
     if (firebaseSettings.mySettings) {
         mySettings = firebaseSettings.mySettings;
     }
+    if (firebaseSettings.betternowUserStyle) {
+        betternowUserStyle = {
+            ...betternowUserStyle,
+            ...firebaseSettings.betternowUserStyle
+        };
+        // Ensure glowIntensity is a number
+        if (typeof betternowUserStyle.glowIntensity !== 'number') {
+            betternowUserStyle.glowIntensity = 6;
+        }
+        // Ensure glowOpacity is a number
+        if (typeof betternowUserStyle.glowOpacity !== 'number') {
+            betternowUserStyle.glowOpacity = 100;
+        }
+    }
 
     // Re-apply chat styles with new settings
     applyChatStyles();
@@ -334,7 +348,7 @@ async function saveSettingsToFirebase() {
         }
 
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle`,
             {
                 method: 'PATCH',
                 headers: {
@@ -390,6 +404,17 @@ async function saveSettingsToFirebase() {
                                     levelColor2: { stringValue: mySettings.levelColor2 || '' },
                                     frameEnabled: { booleanValue: mySettings.frameEnabled || false },
                                     frameUrl: { stringValue: mySettings.frameUrl || '' }
+                                }
+                            }
+                        },
+                        betternowUserStyle: {
+                            mapValue: {
+                                fields: {
+                                    badgeUrl: { stringValue: betternowUserStyle.badgeUrl || '' },
+                                    textColor: { stringValue: betternowUserStyle.textColor || '#e0c2f3' },
+                                    glowColor: { stringValue: betternowUserStyle.glowColor || '#820ad0' },
+                                    glowIntensity: { integerValue: betternowUserStyle.glowIntensity || 6 },
+                                    glowOpacity: { integerValue: betternowUserStyle.glowOpacity || 100 }
                                 }
                             }
                         }
