@@ -56,6 +56,9 @@ async function fetchFilterBypassWordList() {
 }
 
 function injectFilterBypassScript() {
+    // Don't inject if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     // Check if already injected by early injector or previous call
     if (filterBypassInjected || window.__betternowFilterBypassInjected) return;
 
@@ -71,14 +74,16 @@ function injectFilterBypassScript() {
 }
 
 async function sendWordListToPageContext() {
-    console.log('[BetterNow] sendWordListToPageContext called');
+    // Don't send if extension is disabled
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     const words = await fetchFilterBypassWordList();
-    console.log('[BetterNow] Fetched word list:', words?.length, 'words');
+
+    // Check again after async operation
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     if (words && words.length > 0) {
-        console.log('[BetterNow] Sending word list to page context');
         window.postMessage({ type: 'BETTERNOW_FILTER_WORDLIST', words: words }, '*');
-    } else {
-        console.warn('[BetterNow] No words to send');
     }
 }
 
@@ -100,12 +105,52 @@ function disableChatFilterBypass() {
     window.postMessage({ type: 'BETTERNOW_FILTER_BYPASS', enabled: false }, '*');
 }
 
-// Initialize chat filter bypass if enabled
-if (chatFilterBypassEnabled) {
-    injectFilterBypassScript();
-    // Send word list after a short delay to ensure script is loaded
-    setTimeout(sendWordListToPageContext, 100);
+// Initialize chat filter bypass if enabled (only if extension not disabled)
+function initFilterBypassIfEnabled() {
+    // Don't init if extension is disabled for this user
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
+    if (chatFilterBypassEnabled) {
+        injectFilterBypassScript();
+        // Send word list after a short delay to ensure script is loaded
+        setTimeout(sendWordListToPageContext, 100);
+    }
 }
+
+// Wait for settings to load before initializing filter bypass
+function waitForSettingsThenInitFilterBypass() {
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max
+
+    const checkInterval = setInterval(() => {
+        attempts++;
+
+        // If extension is disabled, stop
+        if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
+            clearInterval(checkInterval);
+            return;
+        }
+
+        // If settings loaded, init filter bypass
+        if (typeof settingsLoaded !== 'undefined' && settingsLoaded) {
+            clearInterval(checkInterval);
+            initFilterBypassIfEnabled();
+            return;
+        }
+
+        // Timeout
+        if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            // Only init if not disabled
+            if (typeof extensionDisabled === 'undefined' || !extensionDisabled) {
+                initFilterBypassIfEnabled();
+            }
+        }
+    }, 100);
+}
+
+// Start waiting for settings
+waitForSettingsThenInitFilterBypass();
 
 // ============ Feature Access Check ============
 
@@ -124,6 +169,9 @@ function userHasFeature(feature) {
 // ============ Filter Bypass Button (BetterNow Toolbar) ============
 
 function createFilterBypassButton() {
+    // Don't create if extension is disabled
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     // Check if button already exists
     if (document.getElementById('betternow-filter-bypass-btn')) return;
 
@@ -183,6 +231,19 @@ function createFilterBypassButton() {
     }
 }
 
+// Try to create filter bypass button periodically (needs Firebase settings loaded)
+function tryCreateFilterBypassButton() {
+    // Don't create if extension is disabled
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
+    if (!document.getElementById('betternow-filter-bypass-btn')) {
+        createFilterBypassButton();
+    }
+}
+
+// Check periodically since Firebase settings load async
+setInterval(tryCreateFilterBypassButton, 1000);
+
 // Helper to ensure hex colors have # prefix
 function normalizeHex(value) {
     if (!value) return '';
@@ -200,6 +261,9 @@ function verifyAdminUser() {
 }
 
 async function createAdminPanelEntry() {
+    // Don't create if extension is disabled
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     if (document.getElementById('admin-panel-btn') || adminButtonPending) return;
 
     const currenciesWrapper = document.querySelector('app-profile-dropdown .currencies-infos-wrapper > div');

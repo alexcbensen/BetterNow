@@ -72,6 +72,9 @@ let headerCssEnabled = localStorage.getItem('betternow-sticky-header-disabled') 
 let toolbarFeaturesInitialized = false;
 
 function createBetterNowToolbar() {
+    // Don't create toolbar if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return null;
+
     // Check if toolbar already exists
     if (document.getElementById('betternow-toolbar')) return document.getElementById('betternow-toolbar');
 
@@ -199,6 +202,9 @@ let toolbarFeaturesRetryCount = 0;
 const MAX_TOOLBAR_RETRIES = 20; // 10 seconds max
 
 function initToolbarFeatures() {
+    // Don't init if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     if (toolbarFeaturesInitialized) return;
 
     toolbarFeaturesRetryCount++;
@@ -246,3 +252,5 @@ function removeBetterNowToolbar() {
         resetToolbarFeatures();
     }
 }
+
+// NOTE: Toolbar initialization is triggered from script.js after all scripts are loaded

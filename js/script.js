@@ -79,6 +79,9 @@ setInterval(detectCurrentUser, 5000);
 
 // ============ Initial Setup ============
 
+// Flag to indicate blocked user check is complete
+let blockedCheckComplete = false;
+
 // Wait for user to be logged in and Firebase data to load
 let initAttempts = 0;
 const initInterval = setInterval(() => {
@@ -86,21 +89,52 @@ const initInterval = setInterval(() => {
 
     // Don't initialize if not logged in
     if (!currentUserId) {
-        if (initAttempts > 20) {
-            // Stop checking after ~10 seconds if not logged in
+        if (initAttempts > 40) {
+            // Stop checking after ~20 seconds if not logged in
             clearInterval(initInterval);
+            blockedCheckComplete = true; // Mark complete even on timeout
         }
         return;
     }
 
+    // Wait for Firebase settings to load before checking blocked status
+    // This prevents race condition where user initializes before hiddenUserIds loads
+    if (!settingsLoaded) {
+        if (initAttempts > 40) {
+            // Timeout - proceed without Firebase (fail open)
+            console.warn('[BetterNow] Firebase settings not loaded after 20s, proceeding anyway');
+        } else {
+            return; // Keep waiting
+        }
+    }
+
+    // Store current user ID and blocked list in localStorage for injector.js
+    // (injector.js runs at document_start before we can check Firebase)
+    localStorage.setItem('betternow_currentUserId', currentUserId);
+    localStorage.setItem('betternow_blockedUserIds', JSON.stringify(hiddenUserIds));
+
     // Check if user is blocked
     if (isCurrentUserBlocked()) {
         extensionDisabled = true;
+        blockedCheckComplete = true;
         clearInterval(initInterval);
+
+        // Re-enable carousel that was hidden by styles.css
+        // Inject CSS to override the hide rule
+        const overrideStyle = document.createElement('style');
+        overrideStyle.id = 'betternow-blocked-override';
+        overrideStyle.textContent = `
+            app-broadcasts-carousel:not(.betternow-ready) {
+                visibility: visible !important;
+            }
+        `;
+        document.head.appendChild(overrideStyle);
+
         return; // Don't initialize anything
     }
 
     // User is logged in and not blocked - initialize
+    blockedCheckComplete = true;
     clearInterval(initInterval);
     initializeExtension();
 }, 500);
@@ -235,17 +269,23 @@ function initializeExtension() {
 
 // ============ BetterNow Toolbar Initialization ============
 // This runs AFTER all scripts are loaded, so all functions are available
+// Must wait for blocked user check before creating toolbar
+
+let toolbarObserver = null;
 
 function initBetterNowToolbar() {
+    // Don't create toolbar if extension is disabled
+    if (extensionDisabled) return;
+
     // Try to create toolbar immediately
     if (isOnLiveBroadcast()) {
         createBetterNowToolbar();
     }
 
     // Also watch for navigation/DOM changes to create toolbar when needed
-    const toolbarObserver = new MutationObserver((mutations) => {
-        // Skip if toolbar already exists
-        if (document.getElementById('betternow-toolbar')) return;
+    toolbarObserver = new MutationObserver((mutations) => {
+        // Skip if extension disabled or toolbar already exists
+        if (extensionDisabled || document.getElementById('betternow-toolbar')) return;
 
         // Check for relevant changes
         for (const mutation of mutations) {
@@ -268,5 +308,33 @@ function initBetterNowToolbar() {
     toolbarObserver.observe(document.body, { childList: true, subtree: true });
 }
 
-// Initialize toolbar - all scripts are loaded at this point
-initBetterNowToolbar();
+// Wait for blocked user check before initializing toolbar
+function waitForBlockedCheckThenInitToolbar() {
+    // Check every 100ms until we know if user is blocked or not
+    const checkInterval = setInterval(() => {
+        // If extension is disabled (user is blocked), stop and don't init
+        if (extensionDisabled) {
+            clearInterval(checkInterval);
+            console.log('[BetterNow] Toolbar disabled for blocked user');
+            return;
+        }
+
+        // If settingsLoaded and currentUserId exist, blocked check is complete
+        if (settingsLoaded && currentUserId) {
+            clearInterval(checkInterval);
+            initBetterNowToolbar();
+        }
+    }, 100);
+
+    // Timeout after 25 seconds (longer than the init interval timeout)
+    setTimeout(() => {
+        clearInterval(checkInterval);
+        // Only init if not disabled
+        if (!extensionDisabled) {
+            initBetterNowToolbar();
+        }
+    }, 25000);
+}
+
+// Start waiting for blocked check
+waitForBlockedCheckThenInitToolbar();

@@ -62,6 +62,9 @@ function getConsistentReplacement(hiddenUserId, availableUsers) {
 
 // Inject WebSocket blocker into page context
 function injectWebSocketBlocker() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     if (document.getElementById('betternow-ws-blocker')) return;
 
     const script = document.createElement('script');
@@ -86,11 +89,50 @@ function unblockRoom(roomId) {
     blockedBroadcastIds.delete(String(roomId));
 }
 
-// Call immediately
-injectWebSocketBlocker();
+// Wait for blocked user check before initializing explore features
+function waitForBlockedCheckThenInitExplore() {
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max
+
+    const checkInterval = setInterval(() => {
+        attempts++;
+
+        // Wait for blockedCheckComplete flag from script.js
+        if (typeof blockedCheckComplete !== 'undefined' && blockedCheckComplete) {
+            clearInterval(checkInterval);
+
+            // If extension is disabled, don't initialize anything
+            if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
+                return;
+            }
+
+            // User is not blocked, initialize features
+            injectWebSocketBlocker();
+            preBlockHiddenUsers();
+            injectCarouselHideStyles();
+            return;
+        }
+
+        // Timeout - only init if not disabled
+        if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            if (typeof extensionDisabled === 'undefined' || !extensionDisabled) {
+                injectWebSocketBlocker();
+                preBlockHiddenUsers();
+                injectCarouselHideStyles();
+            }
+        }
+    }, 100);
+}
+
+// Start waiting for blocked check
+waitForBlockedCheckThenInitExplore();
 
 // Pre-fetch and block hidden users' broadcast IDs as early as possible
 async function preBlockHiddenUsers() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     // Wait a moment for ws-blocker to be ready
     await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -144,11 +186,11 @@ async function preBlockHiddenUsers() {
     }
 }
 
-// Run pre-blocking as early as possible
-preBlockHiddenUsers();
-
 // Hide carousel immediately on page load via CSS
 function injectCarouselHideStyles() {
+    // Check if extension is disabled for blocked users - DON'T hide carousel
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     if (document.getElementById('betternow-carousel-hide-styles')) return;
 
     const style = document.createElement('style');
@@ -160,9 +202,6 @@ function injectCarouselHideStyles() {
     `;
     document.head.appendChild(style);
 }
-
-// Call immediately to hide carousel before it renders
-injectCarouselHideStyles();
 
 // Show carousel after processing
 function showCarousel() {
@@ -271,6 +310,9 @@ const SKIP_COOLDOWN_MS = 1500; // 1.5 second cooldown between skips
 
 // Immediately skip active hidden user (synchronous - no API wait)
 function skipActiveHiddenUser() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return false;
+
     exploreLog('skipActiveHiddenUser called, isCurrentlySkipping:', isCurrentlySkipping);
 
     // Prevent multiple simultaneous skips
@@ -472,6 +514,9 @@ function replaceHiddenUserThumbnail(entry, hiddenUserId) {
 
 // Hide carousel entries for hidden broadcasters (or replace with trending)
 async function hideCarouselEntries() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     const carousel = document.querySelector('app-broadcasts-carousel');
     if (!carousel) return;
 
@@ -698,6 +743,9 @@ function setupReplacementClickHandlers(carousel) {
 }
 
 function hideNotifications() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     // Hide notifications from hidden users
     hiddenUserIds.forEach(odiskd => {
         // Check if current user is an exception for this specific hidden broadcaster
@@ -736,6 +784,9 @@ function hideNotifications() {
 }
 
 function hideBroadcasters() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     hiddenUserIds.forEach(odiskd => {
         // Check if current user is an exception for this specific hidden broadcaster
         const exceptions = hiddenExceptions[odiskd] || {};
@@ -797,6 +848,9 @@ function setupCarouselDirectionTracking() {
 }
 
 function hideCarouselBroadcasters() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     const carousel = document.querySelector('app-broadcasts-carousel');
     if (!carousel) return;
 
@@ -852,6 +906,9 @@ function reapplyReplacementThumbnails() {
 
 // Observe carousel for changes and reapply hiding/replacements
 function setupCarouselObserver() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     const carousel = document.querySelector('app-broadcasts-carousel');
     if (!carousel || carousel.dataset.hideObserver) return;
 
@@ -859,6 +916,8 @@ function setupCarouselObserver() {
 
     const observer = new MutationObserver(() => {
         if (isCurrentlySkipping) return;
+        // Check if extension is disabled
+        if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
         hideCarouselEntries();
         reapplyReplacementThumbnails();
     });
@@ -873,6 +932,9 @@ function setupCarouselObserver() {
 
 // Initialize carousel hiding when carousel appears
 function initCarouselHiding() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
     const carousel = document.querySelector('app-broadcasts-carousel');
     if (carousel) {
         setupCarouselObserver();
@@ -920,9 +982,15 @@ function waitForCarouselReady() {
     });
 }
 
-// Run on page load and when DOM changes
+// Run on page load and when DOM changes - but check if disabled first
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCarouselHiding);
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof extensionDisabled === 'undefined' || !extensionDisabled) {
+            initCarouselHiding();
+        }
+    });
 } else {
-    initCarouselHiding();
+    if (typeof extensionDisabled === 'undefined' || !extensionDisabled) {
+        initCarouselHiding();
+    }
 }
