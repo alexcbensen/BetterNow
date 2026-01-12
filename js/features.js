@@ -31,33 +31,33 @@ window.BETTERNOW_BUTTON_STYLE = BETTERNOW_BUTTON_STYLE;
 // ============ Live Broadcast Detection ============
 
 function isOnLiveBroadcast() {
-    // Robust live broadcast detection
-    // A page is a live broadcast ONLY if:
-    // 1. There's a video-player that is NOT inside a carousel
-    // 2. Has broadcaster-is-online class
-    // 3. Video has actual content
+    // Fast live broadcast detection for toolbar creation
+    // We don't need to wait for video content - just structural elements
 
-    // Must have broadcaster-is-online class
+    // Must have broadcaster-is-online class (indicates live stream)
     const isLive = document.querySelector('.broadcaster-is-online') !== null;
     if (!isLive) return false;
 
-    // Find video-player that is NOT inside a carousel
-    // The carousel contains its own video-player for previews
+    // Must have app-top-toolbar (where we insert our toolbar)
+    const hasToolbar = document.querySelector('app-top-toolbar') !== null;
+    if (!hasToolbar) return false;
+
+    // Must have video-player that is NOT inside a carousel
     const videoPlayer = document.querySelector('.video-player:not(app-broadcasts-carousel .video-player)');
     if (!videoPlayer) return false;
 
-    // Must have actual video element with source/playing
+    return true;
+}
+
+// Stricter check for features that need video content
+function isVideoReady() {
+    const videoPlayer = document.querySelector('.video-player:not(app-broadcasts-carousel .video-player)');
+    if (!videoPlayer) return false;
+
     const video = videoPlayer.querySelector('video');
     if (!video) return false;
 
-    // Check if video has actual content (not just an empty element)
-    const hasVideoContent = video.readyState > 0 || video.src || video.srcObject;
-    if (!hasVideoContent) return false;
-
-    // Must have fullscreen-wrapper NOT inside carousel
-    const hasFullscreenWrapper = document.querySelector('.fullscreen-wrapper:not(app-broadcasts-carousel .fullscreen-wrapper)') !== null;
-
-    return hasFullscreenWrapper;
+    return video.readyState > 0 || video.src || video.srcObject;
 }
 
 // Export for other modules
@@ -67,6 +67,9 @@ window.isOnLiveBroadcast = isOnLiveBroadcast;
 
 // headerCssEnabled = true means NON-sticky (BetterNow style), false means sticky (YouNow default)
 let headerCssEnabled = localStorage.getItem('betternow-sticky-header-disabled') !== 'false';
+
+// Track if toolbar features have been initialized
+let toolbarFeaturesInitialized = false;
 
 function createBetterNowToolbar() {
     // Check if toolbar already exists
@@ -185,7 +188,54 @@ function createBetterNowToolbar() {
         createAdminBar();
     }
 
+    // Initialize all toolbar features (all scripts are loaded at this point)
+    initToolbarFeatures();
+
     return toolbar;
+}
+
+// Initialize all toolbar features - called after toolbar is created
+let toolbarFeaturesRetryCount = 0;
+const MAX_TOOLBAR_RETRIES = 20; // 10 seconds max
+
+function initToolbarFeatures() {
+    if (toolbarFeaturesInitialized) return;
+
+    toolbarFeaturesRetryCount++;
+
+    // Create chest controls immediately if broadcasting (doesn't need currentUserId)
+    if (typeof createChestControls === 'function' && typeof isBroadcasting === 'function' && isBroadcasting()) {
+        createChestControls();
+    }
+
+    // For filter bypass and missions, we need currentUserId
+    if (typeof currentUserId === 'undefined' || !currentUserId) {
+        if (toolbarFeaturesRetryCount < MAX_TOOLBAR_RETRIES) {
+            setTimeout(initToolbarFeatures, 500);
+            return;
+        } else {
+            console.warn('[BetterNow] initToolbarFeatures: Max retries reached, currentUserId still null');
+            toolbarFeaturesInitialized = true;
+            return;
+        }
+    }
+
+    toolbarFeaturesInitialized = true;
+
+    // Create filter bypass button if user has access
+    if (typeof createFilterBypassButton === 'function') {
+        createFilterBypassButton();
+    }
+
+    // Create missions button if available
+    if (typeof createMissionsAutoClaimButton === 'function') {
+        createMissionsAutoClaimButton();
+    }
+}
+
+// Reset toolbar features flag when toolbar is removed
+function resetToolbarFeatures() {
+    toolbarFeaturesInitialized = false;
 }
 
 // Remove toolbar when navigating away from live broadcast
@@ -193,5 +243,6 @@ function removeBetterNowToolbar() {
     const toolbar = document.getElementById('betternow-toolbar');
     if (toolbar) {
         toolbar.remove();
+        resetToolbarFeatures();
     }
 }
