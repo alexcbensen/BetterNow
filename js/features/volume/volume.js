@@ -2,7 +2,7 @@
 // Individual guest volume sliders and global volume multiplier
 
 // Debug logging - set to true for verbose output
-const VOLUME_DEBUG = false;
+const VOLUME_DEBUG = true;
 
 // Timeout for checking if page is a live stream (ms)
 const LIVE_STREAM_CHECK_TIMEOUT = 1000;
@@ -30,7 +30,7 @@ function isLiveStream() {
     const hasOnlineClass = document.querySelector('.broadcaster-is-online') !== null;
     const hasFullscreenWrapper = document.querySelector('.fullscreen-wrapper') !== null;
     const hasVideoTiles = document.querySelectorAll('.fullscreen-wrapper > .video').length > 0;
-    
+
     return hasAppChannel && hasOnlineClass && hasFullscreenWrapper && hasVideoTiles;
 }
 
@@ -43,6 +43,9 @@ try {
     volumeError('Failed to load guest volume states from localStorage:', e);
     guestVolumeStates = new Map();
 }
+
+// Timeout handle for initial load check (declared here to avoid temporal dead zone)
+let initialLoadCheckTimeout = null;
 
 function saveGuestVolumes() {
     try {
@@ -64,7 +67,7 @@ function createGlobalVolumeSlider() {
     // Ensure BetterNow toolbar exists
     const betterNowToolbar = createBetterNowToolbar();
     if (!betterNowToolbar) return;
-    
+
     const rightSection = betterNowToolbar.querySelector('.betternow-toolbar__right');
     if (!rightSection) return;
 
@@ -260,13 +263,13 @@ function createGlobalVolumeSlider() {
 
 function applyGlobalMultiplier(multiplier) {
     volumeLog('applyGlobalMultiplier() called with:', multiplier);
-    
+
     // Protect against NaN or invalid values
     if (isNaN(multiplier) || multiplier < 0) {
         volumeWarn('applyGlobalMultiplier: Invalid multiplier value, defaulting to 100. Received:', multiplier);
         multiplier = 100;
     }
-    
+
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
 
     videoTiles.forEach((tile, index) => {
@@ -295,10 +298,10 @@ function applyGlobalMultiplier(multiplier) {
 function applyEarlyVolumes() {
     // Skip if volume sliders already created (initVolumeControls already ran)
     if (document.querySelector('.betternow-volume-slider')) return;
-    
+
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
     if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
-    
+
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
     if (videoTiles.length === 0) return;
 
@@ -307,13 +310,13 @@ function applyEarlyVolumes() {
         const username = getGuestUsername(tile);
         const videoElements = tile.querySelectorAll('video');
         if (videoElements.length === 0) return;
-        
+
         const baseVolume = (username && guestVolumeStates.has(username)) ? guestVolumeStates.get(username) : 100;
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
 
         videoElements.forEach((v) => {
             if (v.dataset.volumeApplied) return;
-            
+
             if (username === 'You') {
                 v.muted = true;
             } else {
@@ -324,7 +327,7 @@ function applyEarlyVolumes() {
             v.dataset.volumeApplied = 'true';
         });
     });
-    
+
     if (appliedCount > 0) {
         volumeLog('applyEarlyVolumes: Applied volume to', appliedCount, 'videos');
     }
@@ -356,19 +359,19 @@ function setsAreEqual(a, b) {
 function setupGuestChangeObserver() {
     const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
     if (!fullscreenWrapper) return;
-    
+
     // Disconnect existing observer if any
     if (guestChangeObserver) {
         guestChangeObserver.disconnect();
         guestChangeObserver = null;
     }
-    
+
     volumeLog('setupGuestChangeObserver: Setting up observer on fullscreen-wrapper');
-    
+
     guestChangeObserver = new MutationObserver((mutations) => {
         // Check if video tiles were added or removed
         let videoTileChanged = false;
-        
+
         for (const mutation of mutations) {
             if (mutation.type === 'childList') {
                 // Check added nodes for video tiles
@@ -388,17 +391,17 @@ function setupGuestChangeObserver() {
             }
             if (videoTileChanged) break;
         }
-        
+
         if (videoTileChanged) {
             // Check if the actual guest list changed (not just DOM reshuffling)
             const currentUsernames = getCurrentGuestUsernames();
-            
+
             if (!setsAreEqual(currentUsernames, lastGuestUsernames)) {
-                volumeLog('guestChangeObserver: Guest list changed:', 
-                    [...lastGuestUsernames].join(', ') || '(none)', '→', 
+                volumeLog('guestChangeObserver: Guest list changed:',
+                    [...lastGuestUsernames].join(', ') || '(none)', '→',
                     [...currentUsernames].join(', ') || '(none)');
                 lastGuestUsernames = currentUsernames;
-                
+
                 // Reapply volumes after a short delay to let DOM settle
                 setTimeout(() => {
                     volumeLog('guestChangeObserver: Reapplying volumes after guest change');
@@ -409,7 +412,7 @@ function setupGuestChangeObserver() {
             }
         }
     });
-    
+
     guestChangeObserver.observe(fullscreenWrapper, { childList: true });
     lastGuestUsernames = getCurrentGuestUsernames();
     volumeLog('setupGuestChangeObserver: Initial guests:', [...lastGuestUsernames].join(', ') || '(none)');
@@ -422,7 +425,7 @@ applyEarlyVolumes();
 function createVolumeSliders() {
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
     if (videoTiles.length === 0) return;
-    
+
     let createdCount = 0;
     videoTiles.forEach((tile, index) => {
         // Skip if already has volume slider
@@ -432,7 +435,7 @@ function createVolumeSliders() {
         if (videoElements.length === 0) return;
 
         const username = getGuestUsername(tile);
-        
+
         // Skip the user's own tile
         if (username === 'You') {
             videoElements.forEach(v => v.muted = true);
@@ -451,12 +454,12 @@ function createVolumeSliders() {
         }
 
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
-        
+
         videoElements.forEach((videoEl) => {
             videoEl.volume = effectiveVolume / 100;
             videoEl.muted = effectiveVolume === 0;
         });
-        
+
         createdCount++;
 
         // Create volume container matching YouNow's structure
@@ -527,8 +530,8 @@ function createVolumeSliders() {
 
             if (firstVideo && (firstVideo.muted || firstVideo.volume === 0)) {
                 // Unmuting - restore previous volume or default to 100
-                const savedVolume = currentUsername && guestVolumeStates.has(currentUsername) 
-                    ? guestVolumeStates.get(currentUsername) 
+                const savedVolume = currentUsername && guestVolumeStates.has(currentUsername)
+                    ? guestVolumeStates.get(currentUsername)
                     : 100;
                 // If saved volume was 0 (muted), restore to 100
                 const baseVolume = savedVolume > 0 ? savedVolume : 100;
@@ -540,7 +543,7 @@ function createVolumeSliders() {
                     volumeLog('Individual unmute: Video', vIndex, '- volume → ', v.volume.toFixed(2));
                 });
                 slider.value = baseVolume.toString();
-                
+
                 // Save the restored volume
                 if (currentUsername) {
                     guestVolumeStates.set(currentUsername, baseVolume);
@@ -550,13 +553,13 @@ function createVolumeSliders() {
                 // Muting - save current volume first, then mute
                 const currentVolume = parseInt(slider.value) || 100;
                 volumeLog('Individual mute toggle: Muting', currentUsername, '| saving volume:', currentVolume);
-                
+
                 // Save current volume before muting (so we can restore it)
                 if (currentUsername && currentVolume > 0) {
                     guestVolumeStates.set(currentUsername, currentVolume);
                     saveGuestVolumes();
                 }
-                
+
                 videos.forEach((v, vIndex) => {
                     v.muted = true;
                     v.volume = 0;
@@ -592,7 +595,7 @@ function createVolumeSliders() {
         const firstVideo = videoElements[0];
         updateVolumeIcon(volumeIcon, firstVideo.muted ? '0' : (firstVideo.volume * 100).toString());
     });
-    
+
     if (createdCount > 0) {
         volumeLog('createVolumeSliders: Created', createdCount, 'sliders');
     }
@@ -654,7 +657,7 @@ function setupVolumeObserver() {
 function reapplyAllGuestVolumes() {
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
     if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
-    
+
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
     if (videoTiles.length === 0) return;
 
@@ -665,7 +668,7 @@ function reapplyAllGuestVolumes() {
         const volumeIcon = tile.querySelector('.betternow-volume-slider .volume__icon i');
 
         if (videoElements.length === 0 || !username) return;
-        
+
         // Skip the user's own tile (shows "You") to prevent echo
         if (username === 'You') {
             videoElements.forEach(v => v.muted = true);
@@ -694,29 +697,29 @@ function reapplyAllGuestVolumes() {
 // Reset volume controls state for new stream
 function resetVolumeControls() {
     volumeLog('resetVolumeControls: Resetting for new stream');
-    
+
     // Disconnect existing observer
     if (guestChangeObserver) {
         guestChangeObserver.disconnect();
         guestChangeObserver = null;
     }
-    
+
     // Clear last guest usernames
     lastGuestUsernames = new Set();
-    
+
     // Remove existing volume sliders
     document.querySelectorAll('.betternow-volume-slider').forEach(el => el.remove());
-    
+
     // Remove global volume slider
     document.querySelectorAll('.betternow-global-volume').forEach(el => el.remove());
     document.querySelectorAll('.betternow-volume-label').forEach(el => el.remove());
-    
+
     // Clear fullscreen-wrapper observer flag so it can be re-observed
     const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
     if (fullscreenWrapper) {
         delete fullscreenWrapper.dataset.volumeObserver;
     }
-    
+
     // Reset initialized flag
     volumeInitialized = false;
 }
@@ -731,14 +734,14 @@ function initVolumeControls() {
     createVolumeSliders();
     updateVolumeSliderVisibility();
     createGlobalVolumeSlider();
-    
+
     // Once we have the global slider created, we're fully initialized
     // The guestChangeObserver will handle future guest join/leave
     if (document.querySelector('.betternow-global-volume') && !volumeInitialized) {
         volumeLog('Volume controls fully initialized, stopping main observer');
         volumeControlsObserver.disconnect();
         volumeInitialized = true;
-        
+
         // Clear initial load check since we successfully initialized
         if (typeof initialLoadCheckTimeout !== 'undefined' && initialLoadCheckTimeout) {
             clearTimeout(initialLoadCheckTimeout);
@@ -753,9 +756,9 @@ let pendingInitTimeout = null;
 const volumeControlsObserver = new MutationObserver((mutations) => {
     // Skip if already fully initialized
     if (volumeInitialized) return;
-    
+
     let shouldInit = false;
-    
+
     for (const mutation of mutations) {
         // Check for added nodes that might be video tiles or toolbar
         if (mutation.addedNodes.length > 0) {
@@ -772,7 +775,7 @@ const volumeControlsObserver = new MutationObserver((mutations) => {
         }
         if (shouldInit) break;
     }
-    
+
     if (shouldInit) {
         // Debounce - cancel previous pending init and schedule new one
         if (pendingInitTimeout) {
@@ -806,7 +809,7 @@ if (document.readyState === 'loading') {
 }
 
 // On initial page load, check if we're on a live stream - if not, clean up after timeout
-let initialLoadCheckTimeout = setTimeout(() => {
+initialLoadCheckTimeout = setTimeout(() => {
     if (!isLiveStream() && !volumeInitialized) {
         volumeLog('Initial load: Not a live stream, cleaning up');
         volumeControlsObserver.disconnect();
@@ -822,31 +825,31 @@ let liveStreamCheckTimeout = null;
 function handleNavigation() {
     const newUrl = location.href;
     if (newUrl === lastStreamUrl) return;
-    
+
     volumeLog('Navigation detected:', lastStreamUrl, '→', newUrl);
     lastStreamUrl = newUrl;
-    
+
     // Stop any existing live stream observer
     if (liveStreamObserver) {
         liveStreamObserver.disconnect();
         liveStreamObserver = null;
     }
-    
+
     // Clear any pending timeout
     if (liveStreamCheckTimeout) {
         clearTimeout(liveStreamCheckTimeout);
         liveStreamCheckTimeout = null;
     }
-    
+
     // Always reset first - the old stream's DOM may still be present
     resetVolumeControls();
-    
+
     // Wait for Angular to update the DOM before checking/observing
     setTimeout(() => {
         // Check if we're now on a live stream (requires multiple conditions)
         if (isLiveStream()) {
             volumeLog('Live stream detected, reinitializing volume controls');
-            
+
             volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
             initVolumeControls();
         } else {
@@ -856,29 +859,29 @@ function handleNavigation() {
                     volumeLog('Live stream detected (via observer), reinitializing volume controls');
                     liveStreamObserver.disconnect();
                     liveStreamObserver = null;
-                    
+
                     if (liveStreamCheckTimeout) {
                         clearTimeout(liveStreamCheckTimeout);
                         liveStreamCheckTimeout = null;
                     }
-                    
+
                     volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
                     initVolumeControls();
                 }
             });
-            
+
             liveStreamObserver.observe(document.body, { childList: true, subtree: true });
-            
+
             // Set timeout to clean up if still not a live stream
             liveStreamCheckTimeout = setTimeout(() => {
                 if (!isLiveStream()) {
                     volumeLog('Not a live stream, cleaning up volume controls');
-                    
+
                     if (liveStreamObserver) {
                         liveStreamObserver.disconnect();
                         liveStreamObserver = null;
                     }
-                    
+
                     volumeControlsObserver.disconnect();
                 }
                 liveStreamCheckTimeout = null;
