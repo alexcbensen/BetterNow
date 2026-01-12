@@ -28,6 +28,7 @@
         "js/features/chat/chat.js",
         "js/features/chest/chest.js",
         "js/features/explore/explore.js",
+        "js/features/missions/missions.js",
         "js/features/volume/volume.js",
         "js/firebase.js",
         "js/admin.js",
