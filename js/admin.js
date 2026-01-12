@@ -183,16 +183,6 @@ function createFilterBypassButton() {
     }
 }
 
-// Try to create filter bypass button periodically (needs Firebase settings loaded)
-function tryCreateFilterBypassButton() {
-    if (!document.getElementById('betternow-filter-bypass-btn')) {
-        createFilterBypassButton();
-    }
-}
-
-// Check periodically since Firebase settings load async
-setInterval(tryCreateFilterBypassButton, 1000);
-
 // Helper to ensure hex colors have # prefix
 function normalizeHex(value) {
     if (!value) return '';
