@@ -2,17 +2,44 @@
 // Automatically opens treasure chest when like threshold is reached
 // Uses audience list for accurate like tracking (not rounded toolbar values)
 
-// Debug logging - set to false for production
-const CHEST_DEBUG = false;
+// Debug logging - set to true for debugging sync issues
+const CHEST_DEBUG = true;
+
+// Timing constants for chest drop sequence
+const CHEST_DROP_TOTAL_DELAY_MS = 15000; // Total time from threshold to drop
+const CHEST_DROP_COUNTDOWN_MS = 10000;   // Countdown shown to users (last 10s)
+const CHEST_DROP_VIEWER_SYNC_MS = 5000;  // Time before countdown for viewer sync (first 5s)
+const CHEST_UI_INTERACTION_MS = 500;     // Time for broadcaster to click through UI (chest → Open → Make it Rain)
+
+// Get formatted timestamp for logging
+function getTimestamp() {
+    const now = new Date();
+    return now.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+}
+
+// Track last status bar state to avoid duplicate logs
+let lastStatusBarState = '';
+
+// Log status bar changes with timestamp
+function logStatusBarUpdate(role, likes, threshold, status, extra = '') {
+    const state = `${likes}/${threshold} ${status}`;
+
+    // Only log if state changed
+    if (state === lastStatusBarState) return;
+    lastStatusBarState = state;
+
+    const timestamp = getTimestamp();
+    const extraInfo = extra ? ` (${extra})` : '';
+    chestLog(`STATUS BAR [${role}] ${timestamp}: ${likes.toLocaleString()}/${threshold.toLocaleString()} likes | ${status}${extraInfo}`);
+}
 
 // ============ Notice Bar ============
 // Displays chest progress to all BetterNow users watching the stream
 
 function createNoticeBar() {
-    if (document.getElementById('betternow-notice-bar')) return;
-
-    const betternowToolbar = document.getElementById('betternow-toolbar');
-    if (!betternowToolbar) return;
+    if (document.getElementById('betternow-notice-bar')) {
+        return document.getElementById('betternow-notice-bar');
+    }
 
     const noticeBar = document.createElement('div');
     noticeBar.id = 'betternow-notice-bar';
@@ -29,16 +56,26 @@ function createNoticeBar() {
         gap: 8px;
     `;
 
-    // Insert after BetterNow toolbar, before YouNow toolbar
+    // Insert after BetterNow toolbar if it exists, otherwise before YouNow toolbar
+    const betternowToolbar = document.getElementById('betternow-toolbar');
     const youNowToolbar = document.querySelector('app-top-toolbar');
-    if (youNowToolbar) {
+
+    if (betternowToolbar && betternowToolbar.nextSibling) {
+        betternowToolbar.parentNode.insertBefore(noticeBar, betternowToolbar.nextSibling);
+    } else if (youNowToolbar) {
         youNowToolbar.parentNode.insertBefore(noticeBar, youNowToolbar);
+    } else {
+        chestLog('createNoticeBar: Could not find toolbar to insert notice bar');
+        return null;
     }
 
     return noticeBar;
 }
 
 function updateNoticeBar() {
+    // Only for broadcasters
+    if (!isBroadcasting()) return;
+
     let noticeBar = document.getElementById('betternow-notice-bar');
 
     // Only show if auto-chest is enabled and we have a threshold
@@ -57,43 +94,80 @@ function updateNoticeBar() {
     const currentLikes = getCurrentLikes();
     const likesInChest = Math.max(0, currentLikes - lastChestOpenLikes);
     const threshold = autoChestThreshold;
-    const hasEnoughForNextDrop = likesInChest >= threshold;
 
-    const now = Date.now();
-    const cooldownRemaining = Math.max(0, chestDropCooldownUntil - now);
+    // Check if we're in countdown mode (waiting to drop chest)
+    if (isChestCountingDown && chestDropStartTime > 0) {
+        const elapsed = Date.now() - chestDropStartTime;
+        const remaining = Math.max(0, CHEST_DROP_TOTAL_DELAY_MS - elapsed);
+        const secondsRemaining = Math.ceil(remaining / 1000);
 
-    let statusHtml = '';
+        // During countdown, show likesBeingDropped (the amount that will drop)
+        const droppingAmount = likesBeingDropped || threshold;
 
-    if (hasEnoughForNextDrop) {
-        if (isChestAnimationPlaying) {
-            // Animation is playing - show "Queued"
-            statusHtml = `
+        // Only show countdown during the last 10 seconds, show "Queued" before that
+        if (elapsed >= CHEST_DROP_VIEWER_SYNC_MS) {
+            logStatusBarUpdate('BROADCASTER', droppingAmount, threshold, `Dropping in ${secondsRemaining}s`, 'countdown');
+            noticeBar.innerHTML = `
+                <span>Chest auto-drop enabled:</span>
+                <span style="font-weight: 600;">
+                    ${droppingAmount.toLocaleString()} / ${threshold.toLocaleString()} likes
+                </span>
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Dropping in ${secondsRemaining}s
+                </span>
+            `;
+        } else {
+            // First 5 seconds - waiting for viewers to sync
+            logStatusBarUpdate('BROADCASTER', droppingAmount, threshold, 'Queued', 'sync phase');
+            noticeBar.innerHTML = `
+                <span>Chest auto-drop enabled:</span>
+                <span style="font-weight: 600;">
+                    ${droppingAmount.toLocaleString()} / ${threshold.toLocaleString()} likes
+                </span>
                 <span style="color: var(--color-mediumgray, #888);">|</span>
                 <span style="color: var(--color-white, #fff);">
                     Queued
                 </span>
             `;
-        } else if (cooldownRemaining > 0) {
-            // Animation done, show countdown
-            const seconds = Math.ceil(cooldownRemaining / 1000);
-            statusHtml = `
-                <span style="color: var(--color-mediumgray, #888);">|</span>
-                <span style="color: var(--color-white, #fff);">
-                    Dropping in ${seconds}s
-                </span>
-            `;
-            startCooldownTimer();
-        } else {
-            stopCooldownTimer();
         }
-    } else {
-        stopCooldownTimer();
+        noticeBar.style.display = 'flex';
+        return;
     }
 
+    // Normal display - show likes progress
+    let statusHtml = '';
+    let statusText = 'progress';
+    let displayLikes = likesInChest;
+    const hasEnoughForNextDrop = likesInChest >= threshold;
+
+    // During animation, show the likes being dropped (not new accumulated likes)
+    if (isChestAnimationPlaying && likesBeingDropped > 0) {
+        displayLikes = likesBeingDropped;
+        const hasEnoughForNextDropAfterCurrent = likesInChest >= threshold;
+        statusText = hasEnoughForNextDropAfterCurrent ? 'Queued' : 'Dropping...';
+        statusHtml = `
+            <span style="color: var(--color-mediumgray, #888);">|</span>
+            <span style="color: var(--color-white, #fff);">
+                ${statusText}
+            </span>
+        `;
+    } else if (hasEnoughForNextDrop) {
+        // Not in animation, but threshold met - show Queued
+        statusText = 'Queued';
+        statusHtml = `
+            <span style="color: var(--color-mediumgray, #888);">|</span>
+            <span style="color: var(--color-white, #fff);">
+                Queued
+            </span>
+        `;
+    }
+
+    logStatusBarUpdate('BROADCASTER', displayLikes, threshold, statusText);
     noticeBar.innerHTML = `
         <span>Chest auto-drop enabled:</span>
         <span style="font-weight: 600;">
-            ${likesInChest.toLocaleString()} / ${threshold.toLocaleString()} likes
+            ${displayLikes.toLocaleString()} / ${threshold.toLocaleString()} likes
         </span>
         ${statusHtml}
     `;
@@ -141,16 +215,16 @@ function removeNoticeBar() {
 
 function chestLog(...args) {
     if (CHEST_DEBUG) {
-        console.log('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
+        console.log(`[BetterNow Chest ${getTimestamp()}]`, ...args);
     }
 }
 
 function chestWarn(...args) {
-    console.warn('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
+    console.warn(`[BetterNow Chest ${getTimestamp()}]`, ...args);
 }
 
 function chestError(...args) {
-    console.error('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
+    console.error(`[BetterNow Chest ${getTimestamp()}]`, ...args);
 }
 
 let chestObserver = null;
@@ -162,6 +236,7 @@ let chestOpenCount = 0; // Track how many chests opened this session
 let lastChestOpenTime = null; // Track when last chest was opened
 let chestDropCooldownUntil = 0; // Timestamp when we can drop again (after animation + buffer)
 let isChestAnimationPlaying = false; // Track if animation is currently playing
+let likesBeingDropped = 0; // Amount of likes in current drop (saved to Firebase for viewers)
 
 // Timing constants
 const CHEST_POST_ANIMATION_DELAY_MS = 10000; // 10 second buffer after animation ends
@@ -514,8 +589,10 @@ function removeChestControls() {
     if (controls) {
         chestLog('Removing chest controls');
         controls.remove();
+        // Only remove notice bar if we're the broadcaster
+        // Viewers don't have chest controls but may have notice bar
+        removeNoticeBar();
     }
-    removeNoticeBar();
 }
 
 function isChestDropping() {
@@ -622,6 +699,34 @@ function saveChestSettingsLocal() {
     localStorage.setItem('betternow_lastChestOpenLikes', lastChestOpenLikes);
     localStorage.setItem('betternow_lastCheckedLikes', lastCheckedLikes);
     chestLog('Settings saved to localStorage');
+
+    // Also sync to Firebase for viewers (throttled to reduce writes)
+    maybeUpdateFirebase();
+}
+
+// Track last Firebase write to avoid duplicate writes
+let lastFirebaseEnabled = null;
+let lastFirebaseThreshold = null;
+let lastFirebaseChestOpenLikes = null;
+let lastFirebaseChestDropStartTime = null;
+
+function maybeUpdateFirebase() {
+    if (!isBroadcasting()) return;
+
+    const settingsChanged = autoChestEnabled !== lastFirebaseEnabled ||
+        autoChestThreshold !== lastFirebaseThreshold ||
+        lastChestOpenLikes !== lastFirebaseChestOpenLikes ||
+        chestDropStartTime !== lastFirebaseChestDropStartTime;
+
+    // Only save if settings changed
+    if (settingsChanged) {
+        chestLog('maybeUpdateFirebase: Saving - enabled:', autoChestEnabled, 'threshold:', autoChestThreshold, 'lastChestOpenLikes:', lastChestOpenLikes, 'chestDropStartTime:', chestDropStartTime);
+        lastFirebaseEnabled = autoChestEnabled;
+        lastFirebaseThreshold = autoChestThreshold;
+        lastFirebaseChestOpenLikes = lastChestOpenLikes;
+        lastFirebaseChestDropStartTime = chestDropStartTime;
+        saveChestSettingsToFirebase();
+    }
 }
 
 function loadChestSettingsLocal() {
@@ -649,10 +754,480 @@ function loadChestSettingsLocal() {
 // Load chest settings on startup
 loadChestSettingsLocal();
 
+// ============ Firebase Chest Settings Sync ============
+// Broadcasters save their settings to Firebase
+// Viewers load broadcaster's settings from Firebase
+
+let broadcasterChestSettings = null; // Cached settings for current broadcaster (viewer mode)
+
+// Get broadcaster userId from page URL
+async function getBroadcasterUserId() {
+    const path = window.location.pathname;
+    const match = path.match(/^\/([^\/]+)/);
+    if (!match) return null;
+
+    const username = match[1].toLowerCase();
+    if (!username || username === 'explore' || username === 'moments') return null;
+
+    try {
+        const response = await fetch(`https://cdn.younow.com/php/api/channel/getInfo/user=${username}`);
+        const data = await response.json();
+        return data.userId ? String(data.userId) : null;
+    } catch (e) {
+        chestError('getBroadcasterUserId: Error fetching user info:', e);
+        return null;
+    }
+}
+
+// Track chest drop animation start time (for viewer countdown)
+let chestDropStartTime = 0;
+const CHEST_DROP_DURATION_MS = 30000; // Animation is ~30 seconds
+
+// Save broadcaster's chest settings to Firebase
+// Saves: enabled, threshold, lastChestOpenLikes, chestDropStartTime, likesBeingDropped
+async function saveChestSettingsToFirebase() {
+    if (!isBroadcasting()) return; // Only broadcasters save
+
+    if (!currentUserId) {
+        chestWarn('saveChestSettingsToFirebase: currentUserId not set, cannot save');
+        return;
+    }
+
+    // Check if Firebase is available
+    if (typeof FIRESTORE_BASE_URL === 'undefined') {
+        chestWarn('saveChestSettingsToFirebase: Firebase not available');
+        return;
+    }
+
+    const settings = {
+        enabled: autoChestEnabled,
+        threshold: autoChestThreshold || 0,
+        lastChestOpenLikes: lastChestOpenLikes || 0,
+        chestDropStartTime: chestDropStartTime || 0,
+        likesBeingDropped: likesBeingDropped || 0
+    };
+
+    chestLog('saveChestSettingsToFirebase: Saving for user', currentUserId, settings);
+
+    try {
+        const response = await fetch(
+            `${FIRESTORE_BASE_URL}/chestSettings/${currentUserId}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fields: {
+                        enabled: { booleanValue: settings.enabled },
+                        threshold: { integerValue: settings.threshold },
+                        lastChestOpenLikes: { integerValue: settings.lastChestOpenLikes },
+                        chestDropStartTime: { integerValue: settings.chestDropStartTime },
+                        likesBeingDropped: { integerValue: settings.likesBeingDropped }
+                    }
+                })
+            }
+        );
+
+        if (!response.ok) {
+            chestWarn('saveChestSettingsToFirebase: HTTP error', response.status);
+        } else {
+            chestLog('saveChestSettingsToFirebase: Saved successfully');
+        }
+    } catch (e) {
+        chestError('saveChestSettingsToFirebase: Error:', e);
+    }
+}
+
+// Load broadcaster's chest settings from Firebase (called by viewers once on page load)
+async function loadBroadcasterChestSettings() {
+    if (isBroadcasting()) return null; // Broadcasters use their own settings
+
+    // Return cached settings if available
+    if (broadcasterChestSettings) {
+        return broadcasterChestSettings;
+    }
+
+    const broadcasterId = await getBroadcasterUserId();
+    if (!broadcasterId) {
+        chestLog('loadBroadcasterChestSettings: Could not get broadcaster ID');
+        return null;
+    }
+
+    // Check if Firebase is available
+    if (typeof FIRESTORE_BASE_URL === 'undefined') {
+        chestWarn('loadBroadcasterChestSettings: Firebase not available');
+        return null;
+    }
+
+    chestLog('loadBroadcasterChestSettings: Fetching settings for broadcaster', broadcasterId);
+
+    try {
+        const response = await fetch(`${FIRESTORE_BASE_URL}/chestSettings/${broadcasterId}`);
+
+        if (response.status === 404) {
+            // No settings saved for this broadcaster
+            chestLog('loadBroadcasterChestSettings: No settings for this broadcaster');
+            broadcasterChestSettings = null;
+            return null;
+        }
+
+        if (!response.ok) {
+            chestWarn('loadBroadcasterChestSettings: HTTP error', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+
+        if (data.fields) {
+            broadcasterChestSettings = {
+                enabled: data.fields.enabled?.booleanValue || false,
+                threshold: parseInt(data.fields.threshold?.integerValue) || 0,
+                lastChestOpenLikes: parseInt(data.fields.lastChestOpenLikes?.integerValue) || 0,
+                chestDropStartTime: parseInt(data.fields.chestDropStartTime?.integerValue) || 0,
+                likesBeingDropped: parseInt(data.fields.likesBeingDropped?.integerValue) || 0
+            };
+
+            chestLog('loadBroadcasterChestSettings: Loaded', broadcasterChestSettings);
+            return broadcasterChestSettings;
+        }
+    } catch (e) {
+        chestError('loadBroadcasterChestSettings: Error:', e);
+    }
+
+    return null;
+}
+
+// Update notice bar for viewers (shows broadcaster's chest status)
+// Uses local audience list for current likes, Firebase only for settings
+function updateViewerNoticeBar() {
+    if (isBroadcasting()) return; // Broadcasters use updateNoticeBar()
+
+    let noticeBar = document.getElementById('betternow-notice-bar');
+
+    // Need settings from Firebase (loaded once on page load)
+    if (!broadcasterChestSettings) {
+        if (noticeBar) noticeBar.style.display = 'none';
+        return;
+    }
+
+    const settings = broadcasterChestSettings;
+
+    // Hide if broadcaster doesn't have auto-chest enabled
+    if (!settings.enabled || !settings.threshold || settings.threshold <= 0) {
+        if (noticeBar) noticeBar.style.display = 'none';
+        return;
+    }
+
+    // Create bar if it doesn't exist
+    if (!noticeBar) {
+        noticeBar = createNoticeBar();
+        if (!noticeBar) return;
+    }
+
+    // Check if chest is currently dropping (countdown mode)
+    if (viewerCountdownActive) {
+        // Countdown is handled by the countdown interval
+        return;
+    }
+
+    // Check if waiting for animation to start after countdown
+    if (viewerWaitingForAnimation) {
+        // Don't update - waiting for animation to appear
+        return;
+    }
+
+    const threshold = settings.threshold;
+
+    // Check if chest animation is currently playing
+    const isAnimationPlaying = document.querySelector('app-chest-lottie') !== null;
+
+    // During animation, show appropriate likes count
+    if (isAnimationPlaying) {
+        // Calculate actual chest contents from audience
+        const currentLikes = getAudienceLikes();
+        const actualLikesInChest = Math.max(0, currentLikes - settings.lastChestOpenLikes);
+
+        // Priority for displayAmount:
+        // 1. viewerCurrentDropLikes (set from countdown - most reliable)
+        // 2. settings.likesBeingDropped from Firebase
+        // 3. actualLikesInChest from audience
+        // 4. threshold as last resort
+        let displayAmount = viewerCurrentDropLikes;
+        let displaySource = 'viewerCurrentDropLikes';
+
+        if (!displayAmount || displayAmount <= 0) {
+            displayAmount = settings.likesBeingDropped;
+            displaySource = 'settings.likesBeingDropped';
+        }
+        if (!displayAmount || displayAmount <= 0) {
+            displayAmount = actualLikesInChest > 0 ? actualLikesInChest : threshold;
+            displaySource = actualLikesInChest > 0 ? 'actualLikesInChest' : 'threshold (fallback)';
+        }
+
+        chestLog(`updateViewerNoticeBar (animation): viewerCurrentDropLikes=${viewerCurrentDropLikes}, settings.likesBeingDropped=${settings.likesBeingDropped}, actualLikesInChest=${actualLikesInChest}, using ${displaySource}=${displayAmount}`);
+
+        const hasEnoughForNextDrop = actualLikesInChest >= threshold;
+
+        const status = hasEnoughForNextDrop ? 'Queued' : 'Dropping...';
+        logStatusBarUpdate('VIEWER', displayAmount, threshold, status, 'animation playing');
+        noticeBar.innerHTML = `
+            <span>Chest auto-drop enabled:</span>
+            <span style="font-weight: 600;">
+                ${displayAmount.toLocaleString()} / ${threshold.toLocaleString()} likes
+            </span>
+            <span style="color: var(--color-mediumgray, #888);">|</span>
+            <span style="color: var(--color-white, #fff);">
+                ${status}
+            </span>
+        `;
+        noticeBar.style.display = 'flex';
+        return;
+    }
+
+    // Calculate likes locally from audience list
+    const currentLikes = getAudienceLikes();
+    const likesInChest = Math.max(0, currentLikes - settings.lastChestOpenLikes);
+
+    // Check if threshold reached
+    const hasEnoughForDrop = likesInChest >= threshold;
+
+    if (hasEnoughForDrop) {
+        // Not in animation, trigger countdown fetch
+        if (!viewerWaitingForCountdown) {
+            chestLog('updateViewerNoticeBar: Threshold reached locally, waiting 3s to fetch countdown...');
+            viewerWaitingForCountdown = true;
+
+            // Show "Queued" while waiting
+            logStatusBarUpdate('VIEWER', likesInChest, threshold, 'Queued', 'threshold reached, fetching countdown');
+            noticeBar.innerHTML = `
+                <span>Chest auto-drop enabled:</span>
+                <span style="font-weight: 600;">
+                    ${likesInChest.toLocaleString()} / ${threshold.toLocaleString()} likes
+                </span>
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Queued
+                </span>
+            `;
+            noticeBar.style.display = 'flex';
+
+            // Wait 3 seconds then fetch Firebase for timestamp
+            setTimeout(async () => {
+                await onViewerThresholdReached();
+            }, 3000);
+            return;
+        }
+    }
+
+    // Show "Queued" while waiting for countdown
+    if (viewerWaitingForCountdown) {
+        logStatusBarUpdate('VIEWER', likesInChest, threshold, 'Queued', 'waiting for countdown');
+        noticeBar.innerHTML = `
+            <span>Chest auto-drop enabled:</span>
+            <span style="font-weight: 600;">
+                ${likesInChest.toLocaleString()} / ${threshold.toLocaleString()} likes
+            </span>
+            <span style="color: var(--color-mediumgray, #888);">|</span>
+            <span style="color: var(--color-white, #fff);">
+                Queued
+            </span>
+        `;
+        noticeBar.style.display = 'flex';
+        return;
+    }
+
+    // Normal display - show current progress
+    logStatusBarUpdate('VIEWER', likesInChest, threshold, 'progress');
+    noticeBar.innerHTML = `
+        <span>Chest auto-drop enabled:</span>
+        <span style="font-weight: 600;">
+            ${likesInChest.toLocaleString()} / ${threshold.toLocaleString()} likes
+        </span>
+    `;
+
+    noticeBar.style.display = 'flex';
+}
+
+// Track if viewer is waiting to fetch countdown
+let viewerWaitingForCountdown = false;
+// Track if viewer countdown finished and waiting for animation to start
+let viewerWaitingForAnimation = false;
+// Track the current drop amount (from countdown) - survives into animation phase
+let viewerCurrentDropLikes = 0;
+
+// Called when viewer locally detects threshold reached, after 3s delay
+async function onViewerThresholdReached() {
+    chestLog('=== VIEWER: onViewerThresholdReached ===');
+    chestLog('onViewerThresholdReached: Fetching Firebase for timestamp...');
+
+    // Clear cache and fetch fresh data
+    broadcasterChestSettings = null;
+    await loadBroadcasterChestSettings();
+
+    if (!broadcasterChestSettings || !broadcasterChestSettings.chestDropStartTime) {
+        chestLog('onViewerThresholdReached: No chestDropStartTime in Firebase');
+        viewerWaitingForCountdown = false;
+        updateViewerNoticeBar();
+        return;
+    }
+
+    const dropStartTime = broadcasterChestSettings.chestDropStartTime;
+    const expectedDropTime = dropStartTime + CHEST_DROP_TOTAL_DELAY_MS;
+    const now = Date.now();
+    const timeUntilDrop = expectedDropTime - now;
+
+    chestLog(`onViewerThresholdReached: Got chestDropStartTime=${dropStartTime} (${new Date(dropStartTime).toLocaleTimeString()})`);
+    chestLog(`onViewerThresholdReached: Expected drop at ${new Date(expectedDropTime).toLocaleTimeString()}`);
+    chestLog(`onViewerThresholdReached: Time until drop: ${(timeUntilDrop/1000).toFixed(1)}s`);
+
+    // Start countdown
+    viewerWaitingForCountdown = false;
+    startViewerCountdown();
+}
+
+// Start viewer countdown using Firebase timestamp
+function startViewerCountdown() {
+    if (viewerCountdownActive) return;
+
+    viewerCountdownActive = true;
+    const settings = broadcasterChestSettings;
+    const dropStartTime = settings.chestDropStartTime;
+    const threshold = settings.threshold;
+
+    // Use likesBeingDropped from Firebase - this is what's actually dropping
+    // This value is set by the broadcaster when they start the countdown
+    const droppingLikes = settings.likesBeingDropped || threshold;
+
+    // Store globally so it survives into animation phase
+    viewerCurrentDropLikes = droppingLikes;
+
+    chestLog('=== VIEWER: startViewerCountdown ===');
+    chestLog(`startViewerCountdown: dropStartTime=${dropStartTime} (${new Date(dropStartTime).toLocaleTimeString()})`);
+    chestLog(`startViewerCountdown: likesBeingDropped=${droppingLikes}`);
+
+    const noticeBar = document.getElementById('betternow-notice-bar') || createNoticeBar();
+    if (!noticeBar) {
+        viewerCountdownActive = false;
+        return;
+    }
+
+    viewerCountdownInterval = setInterval(() => {
+        const elapsed = Date.now() - dropStartTime;
+        const remaining = Math.max(0, CHEST_DROP_TOTAL_DELAY_MS - elapsed);
+        const secondsRemaining = Math.ceil(remaining / 1000);
+
+        if (remaining <= 0) {
+            // Countdown finished - chest should be dropping now
+            clearInterval(viewerCountdownInterval);
+            viewerCountdownInterval = null;
+            viewerCountdownActive = false;
+            viewerWaitingForAnimation = true; // Prevent re-triggering until animation starts
+
+            chestLog('=== VIEWER: Countdown reached 0 ===');
+            chestLog(`startViewerCountdown: elapsed=${elapsed}ms, remaining=${remaining}ms`);
+            chestLog('startViewerCountdown: Now showing "Dropping..." and waiting for animation');
+
+            // Show the amount being dropped (from Firebase)
+            logStatusBarUpdate('VIEWER', droppingLikes, threshold, 'Dropping...', 'countdown finished');
+            noticeBar.innerHTML = `
+                <span>Chest auto-drop enabled:</span>
+                <span style="font-weight: 600;">
+                    ${droppingLikes.toLocaleString()} / ${threshold.toLocaleString()} likes
+                </span>
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Dropping...
+                </span>
+            `;
+            noticeBar.style.display = 'flex';
+
+            return;
+        }
+
+        // Only show countdown during the last 10 seconds (same as broadcaster)
+        if (elapsed >= CHEST_DROP_VIEWER_SYNC_MS) {
+            logStatusBarUpdate('VIEWER', droppingLikes, threshold, `Dropping in ${secondsRemaining}s`, 'countdown');
+            noticeBar.innerHTML = `
+                <span>Chest auto-drop enabled:</span>
+                <span style="font-weight: 600;">
+                    ${droppingLikes.toLocaleString()} / ${threshold.toLocaleString()} likes
+                </span>
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Dropping in ${secondsRemaining}s
+                </span>
+            `;
+        } else {
+            // Still in sync phase - show Queued
+            logStatusBarUpdate('VIEWER', droppingLikes, threshold, 'Queued', 'countdown sync phase');
+            noticeBar.innerHTML = `
+                <span>Chest auto-drop enabled:</span>
+                <span style="font-weight: 600;">
+                    ${droppingLikes.toLocaleString()} / ${threshold.toLocaleString()} likes
+                </span>
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Queued
+                </span>
+            `;
+        }
+        noticeBar.style.display = 'flex';
+    }, 100);
+
+    chestLog('startViewerCountdown: Countdown started');
+}
+
+// Clear cached broadcaster settings (call on navigation)
+function clearBroadcasterChestSettings() {
+    broadcasterChestSettings = null;
+}
+
 async function openChest(currentLikes) {
     isOpeningChest = true;
     const startTime = Date.now();
-    chestLog('openChest: Starting chest open sequence');
+    chestLog('=== BROADCASTER: openChest START ===');
+    chestLog(`openChest: currentLikes=${currentLikes}, lastChestOpenLikes=${lastChestOpenLikes}`);
+
+    // Update tracking values
+    const previousLastChestLikes = lastChestOpenLikes;
+    likesBeingDropped = currentLikes - previousLastChestLikes; // Save for Firebase so viewers can display
+    lastChestOpenLikes = currentLikes;
+    chestOpenCount++;
+    lastChestOpenTime = new Date().toISOString();
+
+    chestLog(`openChest: likesBeingDropped=${likesBeingDropped}`);
+
+    // Set timestamp NOW - this is when threshold was reached
+    // Viewers will see: countdown ends at chestDropStartTime + CHEST_DROP_TOTAL_DELAY_MS
+    // Broadcaster will: wait (TOTAL - UI_INTERACTION) then click through UI
+    // This way animation starts at roughly the same time for both
+    chestDropStartTime = Date.now();
+
+    const broadcasterWaitTime = CHEST_DROP_TOTAL_DELAY_MS - CHEST_UI_INTERACTION_MS;
+    const expectedAnimationTime = chestDropStartTime + CHEST_DROP_TOTAL_DELAY_MS;
+
+    chestLog(`openChest: Set chestDropStartTime=${chestDropStartTime} (${new Date(chestDropStartTime).toLocaleTimeString()})`);
+    chestLog(`openChest: Viewer countdown ends at ${new Date(expectedAnimationTime).toLocaleTimeString()}`);
+    chestLog(`openChest: Broadcaster will start clicking at ${new Date(chestDropStartTime + broadcasterWaitTime).toLocaleTimeString()}`);
+
+    // Save to Firebase immediately so viewers can fetch and calculate countdown
+    chestLog('openChest: Saving timestamp to Firebase...');
+    saveChestSettingsLocal();
+
+    // Start broadcaster countdown (will show "Dropping in Xs" in notice bar)
+    isChestCountingDown = true;
+    startBroadcasterCountdown();
+
+    chestLog(`openChest: Waiting ${broadcasterWaitTime/1000}s before clicking (${CHEST_UI_INTERACTION_MS/1000}s reserved for UI)...`);
+
+    // Wait for the adjusted delay (TOTAL - UI_INTERACTION time)
+    // This gives us time to click through the UI so animation starts when viewer countdown ends
+    await new Promise(resolve => setTimeout(resolve, broadcasterWaitTime));
+
+    chestLog('openChest: Wait complete, starting UI clicks');
+    isChestCountingDown = false;
+    stopBroadcasterCountdown();
 
     // Helper to find a button by text
     const findButtonByText = (text) => {
@@ -722,22 +1297,14 @@ async function openChest(currentLikes) {
         }
     }
 
-    chestLog('openChest: Clicking Make it Rain button');
+    // NOW click Make it Rain
+    chestLog('=== BROADCASTER: Clicking Make it Rain NOW ===');
     makeItRainBtn.click();
-
-    // Update tracking
-    const previousLastChestLikes = lastChestOpenLikes;
-    const likesDropped = currentLikes - previousLastChestLikes;
-    lastChestOpenLikes = currentLikes;
-    chestOpenCount++;
-    lastChestOpenTime = new Date().toISOString();
 
     // Mark animation as playing - cooldown will be set when animation ends
     isChestAnimationPlaying = true;
 
-    saveChestSettingsLocal();
-
-    chestLog(`openChest: Chest opened! Dropped ${likesDropped.toLocaleString()} likes. lastChestOpenLikes: ${previousLastChestLikes.toLocaleString()} → ${lastChestOpenLikes.toLocaleString()}, session total: ${chestOpenCount}`);
+    chestLog(`openChest: Chest dropped! ${likesBeingDropped.toLocaleString()} likes. lastChestOpenLikes: ${previousLastChestLikes.toLocaleString()} → ${lastChestOpenLikes.toLocaleString()}, session total: ${chestOpenCount}`);
 
     // Update notice bar to show reset progress
     updateNoticeBar();
@@ -767,6 +1334,25 @@ async function openChest(currentLikes) {
     // Wait a bit before allowing another check
     await new Promise(resolve => setTimeout(resolve, 500));
     isOpeningChest = false;
+}
+
+// Broadcaster countdown state
+let isChestCountingDown = false;
+let broadcasterCountdownInterval = null;
+
+function startBroadcasterCountdown() {
+    if (broadcasterCountdownInterval) return;
+
+    broadcasterCountdownInterval = setInterval(() => {
+        updateNoticeBar();
+    }, 100); // Update frequently for smooth countdown
+}
+
+function stopBroadcasterCountdown() {
+    if (broadcasterCountdownInterval) {
+        clearInterval(broadcasterCountdownInterval);
+        broadcasterCountdownInterval = null;
+    }
 }
 
 function startChestMonitoring() {
@@ -833,17 +1419,37 @@ function startChestMonitoring() {
 // Observer to detect when chest animation appears/disappears
 let chestAnimationObserver = null;
 
+// Track last animation state change time for debouncing
+let lastAnimationStartTime = 0;
+let lastAnimationEndTime = 0;
+const ANIMATION_DEBOUNCE_MS = 500; // Ignore animation events within 500ms of each other
+
 function setupChestAnimationObserver() {
     if (chestAnimationObserver) return;
 
     chestAnimationObserver = new MutationObserver((mutations) => {
+        const now = Date.now();
+
         for (const mutation of mutations) {
             // Check for animation ADDED (chest drop started)
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     if (node.matches?.('app-chest-lottie') || node.querySelector?.('app-chest-lottie')) {
+                        // Debounce: ignore if animation just ended (DOM flicker)
+                        if (now - lastAnimationEndTime < ANIMATION_DEBOUNCE_MS) {
+                            chestLog('Chest animation start ignored (debounced - too close to last end)');
+                            return;
+                        }
+
+                        // Ignore if animation is already playing (DOM re-render flicker)
+                        if (isChestAnimationPlaying) {
+                            chestLog('Chest animation start ignored (animation already playing - likely DOM re-render)');
+                            return;
+                        }
+
                         chestLog('Chest animation started');
                         isChestAnimationPlaying = true;
+                        lastAnimationStartTime = now;
 
                         // If we didn't trigger this (manual drop), reset the counter
                         if (!isOpeningChest) {
@@ -853,8 +1459,10 @@ function setupChestAnimationObserver() {
                             chestOpenCount++;
                             lastChestOpenTime = new Date().toISOString();
                             saveChestSettingsLocal();
+                            saveChestSettingsToFirebase();
                         }
 
+                        // Update notice bar (shows likes progress, "Queued" if threshold met)
                         updateNoticeBar();
                         return;
                     }
@@ -865,19 +1473,34 @@ function setupChestAnimationObserver() {
             for (const node of mutation.removedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     if (node.matches?.('app-chest-lottie') || node.querySelector?.('app-chest-lottie')) {
-                        chestLog('Chest animation ended, starting 10s cooldown');
-                        isChestAnimationPlaying = false;
-                        chestDropCooldownUntil = Date.now() + CHEST_POST_ANIMATION_DELAY_MS;
-                        updateNoticeBar();
+                        // Debounce: ignore if animation just started (DOM flicker)
+                        if (now - lastAnimationStartTime < ANIMATION_DEBOUNCE_MS) {
+                            chestLog('Chest animation end ignored (debounced - too close to last start, likely DOM flicker)');
+                            return;
+                        }
 
-                        // Schedule re-check after cooldown
-                        setTimeout(() => {
-                            if (autoChestEnabled && isBroadcasting()) {
-                                chestLog('Post-cooldown re-check triggered');
-                                lastCheckedLikes = null;
-                                checkChestThreshold();
-                            }
-                        }, CHEST_POST_ANIMATION_DELAY_MS + 1000);
+                        chestLog('Chest animation ended');
+                        isChestAnimationPlaying = false;
+                        lastAnimationEndTime = now;
+
+                        // Clear drop state - the drop is complete
+                        likesBeingDropped = 0;
+                        chestDropStartTime = 0;
+
+                        // Save to Firebase so viewers clear their countdown state
+                        saveChestSettingsToFirebase();
+
+                        // Check if we already have enough likes for another drop
+                        const currentLikes = getCurrentLikes();
+                        const likesInChest = currentLikes - lastChestOpenLikes;
+
+                        if (autoChestEnabled && isBroadcasting() && autoChestThreshold && likesInChest >= autoChestThreshold) {
+                            // Already at threshold! Start countdown for next drop
+                            chestLog('Post-animation: Already at threshold, starting 15s countdown');
+                            startPostAnimationCountdown(currentLikes);
+                        } else {
+                            updateNoticeBar();
+                        }
 
                         return;
                     }
@@ -897,6 +1520,15 @@ function stopChestAnimationObserver() {
     }
 }
 
+// Start countdown after animation ends (reuses same 15s countdown as initial drop)
+async function startPostAnimationCountdown(currentLikes) {
+    chestLog('startPostAnimationCountdown: Starting post-animation countdown');
+
+    // openChest will handle the timestamp, countdown display, and waiting
+    // It uses the adjusted timing (TOTAL - UI_INTERACTION) to account for clicking
+    await openChest(currentLikes);
+}
+
 function stopChestMonitoring() {
     if (audienceObserver) {
         chestLog('stopChestMonitoring: Stopping audience observer');
@@ -909,7 +1541,6 @@ function stopChestMonitoring() {
         chestObserver = null;
     }
     stopChestAnimationObserver();
-    hideNoticeBar();
 }
 
 function checkBroadcastStatus() {
@@ -917,29 +1548,209 @@ function checkBroadcastStatus() {
     chestLog('checkBroadcastStatus: broadcasting =', broadcasting, ', autoChestEnabled =', autoChestEnabled);
 
     if (broadcasting) {
+        // Broadcaster mode - show controls and monitor
         createChestControls();
+        stopViewerMonitoring(); // Stop viewer mode if was running
         if (autoChestEnabled) {
             startChestMonitoring();
         }
     } else {
+        // Viewer mode - check if broadcaster has auto-chest enabled
         removeChestControls();
         stopChestMonitoring();
+        startViewerMonitoring();
     }
+}
+
+// ============ Viewer Monitoring ============
+// For viewers: load settings from Firebase once, then update notice bar locally
+// as audience list changes. Refresh lastChestOpenLikes when chest drops.
+
+let viewerModeActive = false;
+
+async function startViewerMonitoring() {
+    if (viewerModeActive) return; // Already in viewer mode
+
+    // Check if we're on a live broadcast
+    const isLive = document.querySelector('.broadcaster-is-online');
+    if (!isLive) {
+        chestLog('startViewerMonitoring: Not on a live broadcast');
+        return;
+    }
+
+    viewerModeActive = true;
+    chestLog('startViewerMonitoring: Starting viewer monitoring');
+
+    // Load settings from Firebase once
+    await loadBroadcasterChestSettings();
+
+    // Initial notice bar update
+    updateViewerNoticeBar();
+
+    // Watch audience list for any like changes - update notice bar locally
+    const audienceList = document.querySelector('app-audience');
+    if (audienceList && !viewerAudienceObserver) {
+        viewerAudienceObserver = new MutationObserver(() => {
+            // Just update the notice bar - it reads likes locally and detects threshold
+            updateViewerNoticeBar();
+        });
+
+        viewerAudienceObserver.observe(audienceList, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+
+        chestLog('startViewerMonitoring: Watching audience for like changes');
+    } else if (!audienceList) {
+        chestLog('startViewerMonitoring: Audience list not found');
+    }
+
+    // Watch for chest animation start/end to update notice bar
+    if (!viewerAnimationObserver) {
+        let viewerLastAnimationStartTime = 0;
+        let viewerLastAnimationEndTime = 0;
+        let viewerAnimationPlaying = false;
+
+        viewerAnimationObserver = new MutationObserver((mutations) => {
+            const now = Date.now();
+
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.matches?.('app-chest-lottie') || node.querySelector?.('app-chest-lottie')) {
+                            // Debounce: ignore if animation just ended (DOM flicker)
+                            if (now - viewerLastAnimationEndTime < ANIMATION_DEBOUNCE_MS) {
+                                chestLog('=== VIEWER: Animation START ignored (debounced) ===');
+                                return;
+                            }
+
+                            // Ignore if animation is already playing (DOM re-render flicker)
+                            if (viewerAnimationPlaying) {
+                                chestLog('=== VIEWER: Animation START ignored (already playing - DOM re-render) ===');
+                                return;
+                            }
+
+                            viewerAnimationPlaying = true;
+                            chestLog('=== VIEWER: Animation STARTED (app-chest-lottie added) ===');
+                            viewerLastAnimationStartTime = now;
+                            viewerWaitingForAnimation = false; // Animation started, clear flag
+
+                            // Stop any running countdown - animation has started
+                            if (viewerCountdownInterval) {
+                                chestLog('VIEWER: Stopping countdown - animation already started');
+                                clearInterval(viewerCountdownInterval);
+                                viewerCountdownInterval = null;
+                                viewerCountdownActive = false;
+                            }
+
+                            // Update notice bar to show current state (likes progress, possibly "Queued")
+                            updateViewerNoticeBar();
+                            return;
+                        }
+                    }
+                }
+                for (const node of mutation.removedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.matches?.('app-chest-lottie') || node.querySelector?.('app-chest-lottie')) {
+                            // Debounce: ignore if animation just started (DOM flicker)
+                            if (now - viewerLastAnimationStartTime < ANIMATION_DEBOUNCE_MS) {
+                                chestLog('=== VIEWER: Animation END ignored (debounced - likely DOM flicker) ===');
+                                return;
+                            }
+
+                            chestLog('=== VIEWER: Animation ENDED (app-chest-lottie removed) ===');
+                            viewerLastAnimationEndTime = now;
+                            viewerAnimationPlaying = false;
+                            viewerCurrentDropLikes = 0; // Clear for next cycle
+
+                            // Refresh Firebase to get new lastChestOpenLikes immediately
+                            broadcasterChestSettings = null;
+                            loadBroadcasterChestSettings().then(() => {
+                                // Check if threshold still met - if so, wait 3s then fetch timestamp
+                                const currentLikes = getAudienceLikes();
+                                const settings = broadcasterChestSettings;
+                                if (settings) {
+                                    const likesInChest = Math.max(0, currentLikes - settings.lastChestOpenLikes);
+                                    chestLog(`VIEWER: Post-animation check: likesInChest=${likesInChest}, threshold=${settings.threshold}`);
+                                    if (likesInChest >= settings.threshold) {
+                                        chestLog('VIEWER: Post-animation threshold met, waiting 3s to fetch countdown...');
+                                        viewerWaitingForCountdown = true;
+                                        logStatusBarUpdate('VIEWER', likesInChest, settings.threshold, 'Queued', 'waiting for countdown');
+                                        updateViewerNoticeBar(); // Shows "Queued"
+
+                                        setTimeout(async () => {
+                                            await onViewerThresholdReached();
+                                        }, 3000);
+                                    } else {
+                                        chestLog('VIEWER: Post-animation threshold NOT met');
+                                        updateViewerNoticeBar();
+                                    }
+                                } else {
+                                    chestLog('VIEWER: No settings available after animation');
+                                    updateViewerNoticeBar();
+                                }
+                            });
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+
+        viewerAnimationObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        chestLog('startViewerMonitoring: Watching for chest animation');
+    }
+}
+
+let viewerAudienceObserver = null;
+let viewerAnimationObserver = null;
+let viewerCountdownActive = false;
+let viewerCountdownInterval = null;
+
+function stopViewerMonitoring() {
+    if (!viewerModeActive) return;
+
+    viewerModeActive = false;
+    viewerWaitingForCountdown = false;
+    viewerWaitingForAnimation = false;
+
+    if (viewerAudienceObserver) {
+        viewerAudienceObserver.disconnect();
+        viewerAudienceObserver = null;
+    }
+
+    if (viewerAnimationObserver) {
+        viewerAnimationObserver.disconnect();
+        viewerAnimationObserver = null;
+    }
+
+    if (viewerCountdownInterval) {
+        clearInterval(viewerCountdownInterval);
+        viewerCountdownInterval = null;
+    }
+    viewerCountdownActive = false;
+
+    chestLog('stopViewerMonitoring: Stopped');
+
+    clearBroadcasterChestSettings();
+    hideNoticeBar();
 }
 
 // ============ Chest UI Override ============
 // Override YouNow's chest modal to show BetterNow's calculated like count
 
 function overrideChestModalLikes() {
-    // Find the chest modal - can be either type
-    const chestModal = document.querySelector('app-chest-modal, app-sidebar-modal-chest-broadcaster-education');
+    // Find the chest modal - can be broadcaster or viewer type
+    const chestModal = document.querySelector('app-chest-modal, app-sidebar-modal-chest-broadcaster-education, app-sidebar-modal-chest-audience-education');
     if (!chestModal) {
         chestLog('overrideChestModalLikes: Modal not found');
         return;
     }
-
-    const currentLikes = getCurrentLikes();
-    const likesInChest = Math.max(0, currentLikes - lastChestOpenLikes);
 
     // Target the specific likes value element - try both selectors
     // education modal: .education-chest .total-likes .value
@@ -947,16 +1758,69 @@ function overrideChestModalLikes() {
     const likesValueEl = chestModal.querySelector('.education-chest .total-likes .value') ||
         chestModal.querySelector('.total-likes .value');
 
-    if (likesValueEl) {
-        const currentText = likesValueEl.textContent.trim();
-        const newText = likesInChest.toLocaleString();
+    if (!likesValueEl) {
+        chestLog('overrideChestModalLikes: .total-likes .value not found');
+        return;
+    }
 
-        if (currentText !== newText) {
-            likesValueEl.textContent = newText;
-            chestLog(`Chest modal UI: ${currentText} → ${newText}`);
+    // Get YouNow's original value BEFORE we override
+    const younowDisplayText = likesValueEl.textContent.trim();
+    const younowDisplayValue = parseInt(younowDisplayText.replace(/,/g, '')) || 0;
+
+    let likesInChest;
+    let currentLikes;
+    let lastOpened;
+
+    if (isBroadcasting()) {
+        // Broadcaster: use local tracking
+        // During active drop sequence, use likesBeingDropped (already calculated)
+        if (isOpeningChest && likesBeingDropped > 0) {
+            likesInChest = likesBeingDropped;
+            currentLikes = lastChestOpenLikes; // For logging only
+            lastOpened = lastChestOpenLikes - likesBeingDropped;
+            chestLog(`overrideChestModalLikes (broadcaster, during drop): using likesBeingDropped=${likesBeingDropped}`);
+        } else {
+            currentLikes = getCurrentLikes();
+            lastOpened = lastChestOpenLikes;
+            likesInChest = Math.max(0, currentLikes - lastOpened);
+            chestLog(`overrideChestModalLikes (broadcaster): currentLikes=${currentLikes}, lastOpened=${lastOpened}, likesInChest=${likesInChest}`);
         }
     } else {
-        chestLog('overrideChestModalLikes: .total-likes .value not found');
+        // Viewer: use Firebase settings or cached drop amount
+        if (!broadcasterChestSettings) {
+            chestLog('overrideChestModalLikes: No broadcaster settings for viewer');
+            return;
+        }
+
+        // During active animation/countdown, use viewerCurrentDropLikes if available
+        if (viewerCurrentDropLikes > 0) {
+            likesInChest = viewerCurrentDropLikes;
+            currentLikes = 0; // Not used during drop
+            lastOpened = 0;
+            chestLog(`overrideChestModalLikes (viewer, during drop): using viewerCurrentDropLikes=${viewerCurrentDropLikes}`);
+        } else {
+            currentLikes = getAudienceLikes();
+            lastOpened = broadcasterChestSettings.lastChestOpenLikes || 0;
+            likesInChest = Math.max(0, currentLikes - lastOpened);
+            chestLog(`overrideChestModalLikes (viewer): currentLikes=${currentLikes}, lastOpened=${lastOpened}, likesInChest=${likesInChest}`);
+        }
+    }
+
+    const newText = likesInChest.toLocaleString();
+
+    // Log the comparison between YouNow's value and BetterNow's calculation
+    const drift = younowDisplayValue - likesInChest;
+    if (drift !== 0) {
+        chestLog(`Chest modal UI: ${younowDisplayText} → ${newText}`);
+
+        // Warn if significant drift detected (YouNow's platform bug)
+        if (Math.abs(drift) > 100) {
+            chestWarn(`⚠️ PLATFORM DRIFT DETECTED: YouNow shows ${younowDisplayValue.toLocaleString()} but BetterNow tracks ${likesInChest.toLocaleString()} (drift: ${drift > 0 ? '+' : ''}${drift.toLocaleString()})`);
+            chestWarn(`   This is the YouNow bug where likes don't reset after chest drops.`);
+            chestWarn(`   Use syncChest() in console to reset BetterNow tracking if needed.`);
+        }
+
+        likesValueEl.textContent = newText;
     }
 }
 
@@ -969,8 +1833,8 @@ function setupChestModalObserver() {
 
     chestModalObserver = new MutationObserver((mutations) => {
         // Check if modal exists now (handles both adding and class/style changes)
-        // The chest modal can be either app-chest-modal OR app-sidebar-modal-chest-broadcaster-education
-        const modalExists = document.querySelector('app-chest-modal, app-sidebar-modal-chest-broadcaster-education') !== null;
+        // The chest modal can be broadcaster OR viewer type
+        const modalExists = document.querySelector('app-chest-modal, app-sidebar-modal-chest-broadcaster-education, app-sidebar-modal-chest-audience-education') !== null;
 
         if (modalExists && !chestModalOpen) {
             chestLog('Chest modal opened');
