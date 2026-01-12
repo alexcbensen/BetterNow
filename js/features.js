@@ -28,6 +28,41 @@ const BETTERNOW_BUTTON_STYLE = `
 // Export for other modules
 window.BETTERNOW_BUTTON_STYLE = BETTERNOW_BUTTON_STYLE;
 
+// ============ Live Broadcast Detection ============
+
+function isOnLiveBroadcast() {
+    // Robust live broadcast detection
+    // A page is a live broadcast ONLY if:
+    // 1. There's a video-player that is NOT inside a carousel
+    // 2. Has broadcaster-is-online class
+    // 3. Video has actual content
+
+    // Must have broadcaster-is-online class
+    const isLive = document.querySelector('.broadcaster-is-online') !== null;
+    if (!isLive) return false;
+
+    // Find video-player that is NOT inside a carousel
+    // The carousel contains its own video-player for previews
+    const videoPlayer = document.querySelector('.video-player:not(app-broadcasts-carousel .video-player)');
+    if (!videoPlayer) return false;
+
+    // Must have actual video element with source/playing
+    const video = videoPlayer.querySelector('video');
+    if (!video) return false;
+
+    // Check if video has actual content (not just an empty element)
+    const hasVideoContent = video.readyState > 0 || video.src || video.srcObject;
+    if (!hasVideoContent) return false;
+
+    // Must have fullscreen-wrapper NOT inside carousel
+    const hasFullscreenWrapper = document.querySelector('.fullscreen-wrapper:not(app-broadcasts-carousel .fullscreen-wrapper)') !== null;
+
+    return hasFullscreenWrapper;
+}
+
+// Export for other modules
+window.isOnLiveBroadcast = isOnLiveBroadcast;
+
 // ============ BetterNow Toolbar ============
 
 // headerCssEnabled = true means NON-sticky (BetterNow style), false means sticky (YouNow default)
@@ -41,10 +76,8 @@ function createBetterNowToolbar() {
     const youNowToolbar = document.querySelector('app-top-toolbar');
     if (!youNowToolbar) return null;
 
-    // Don't show toolbar if not on a live stream
-    // broadcaster-is-online class only exists when viewing an active broadcast
-    const isLive = document.querySelector('.broadcaster-is-online');
-    if (!isLive) return null;
+    // Don't show toolbar if not on a live broadcast
+    if (!isOnLiveBroadcast()) return null;
 
     // Create our toolbar
     const toolbar = document.createElement('div');
@@ -153,4 +186,12 @@ function createBetterNowToolbar() {
     }
 
     return toolbar;
+}
+
+// Remove toolbar when navigating away from live broadcast
+function removeBetterNowToolbar() {
+    const toolbar = document.getElementById('betternow-toolbar');
+    if (toolbar) {
+        toolbar.remove();
+    }
 }

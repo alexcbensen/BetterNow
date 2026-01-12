@@ -2,6 +2,12 @@ app-chat .user-card__body {
     color: white !important;
 }
 
+
+/* Hide carousel until BetterNow processes it */
+app-broadcasts-carousel:not(.betternow-ready) {
+    visibility: hidden !important;
+}
+
 /* Make header scroll with page instead of staying fixed */
 app-channel .header {
     position: relative !important;
