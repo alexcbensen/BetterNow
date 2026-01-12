@@ -488,15 +488,6 @@ function createMissionsAutoClaimButton() {
 // Set up TDI capture immediately
 setupTdiCapture();
 
-// Try to create button periodically
-function tryCreateMissionsButton() {
-    if (!document.getElementById('betternow-missions-btn')) {
-        createMissionsAutoClaimButton();
-    }
-}
-
-setInterval(tryCreateMissionsButton, 1000);
-
 // ============ Debug Helpers ============
 
 window.debugMissions = async function() {
