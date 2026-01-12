@@ -44,6 +44,7 @@ function updateNoticeBar() {
     // Only show if auto-chest is enabled and we have a threshold
     if (!autoChestEnabled || !autoChestThreshold || autoChestThreshold <= 0) {
         if (noticeBar) noticeBar.style.display = 'none';
+        stopCooldownTimer();
         return;
     }
 
@@ -56,15 +57,72 @@ function updateNoticeBar() {
     const currentLikes = getCurrentLikes();
     const likesInChest = Math.max(0, currentLikes - lastChestOpenLikes);
     const threshold = autoChestThreshold;
+    const hasEnoughForNextDrop = likesInChest >= threshold;
+
+    const now = Date.now();
+    const cooldownRemaining = Math.max(0, chestDropCooldownUntil - now);
+
+    let statusHtml = '';
+
+    if (hasEnoughForNextDrop) {
+        if (isChestAnimationPlaying) {
+            // Animation is playing - show "Queued"
+            statusHtml = `
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Queued
+                </span>
+            `;
+        } else if (cooldownRemaining > 0) {
+            // Animation done, show countdown
+            const seconds = Math.ceil(cooldownRemaining / 1000);
+            statusHtml = `
+                <span style="color: var(--color-mediumgray, #888);">|</span>
+                <span style="color: var(--color-white, #fff);">
+                    Dropping in ${seconds}s
+                </span>
+            `;
+            startCooldownTimer();
+        } else {
+            stopCooldownTimer();
+        }
+    } else {
+        stopCooldownTimer();
+    }
 
     noticeBar.innerHTML = `
         <span>Chest auto-drop enabled:</span>
         <span style="font-weight: 600;">
             ${likesInChest.toLocaleString()} / ${threshold.toLocaleString()} likes
         </span>
+        ${statusHtml}
     `;
 
     noticeBar.style.display = 'flex';
+}
+
+// Cooldown timer interval
+let cooldownTimerInterval = null;
+
+function startCooldownTimer() {
+    if (cooldownTimerInterval) return; // Already running
+
+    cooldownTimerInterval = setInterval(() => {
+        const now = Date.now();
+        if (now >= chestDropCooldownUntil) {
+            stopCooldownTimer();
+            updateNoticeBar(); // Update to remove timer display
+        } else {
+            updateNoticeBar(); // Update countdown
+        }
+    }, 1000);
+}
+
+function stopCooldownTimer() {
+    if (cooldownTimerInterval) {
+        clearInterval(cooldownTimerInterval);
+        cooldownTimerInterval = null;
+    }
 }
 
 function hideNoticeBar() {
@@ -102,10 +160,11 @@ let lastCheckedLikes = null;
 let lastKnownAudienceLikes = null; // Track last total to avoid processing non-like changes
 let chestOpenCount = 0; // Track how many chests opened this session
 let lastChestOpenTime = null; // Track when last chest was opened
-let chestDropCooldownUntil = 0; // Timestamp when we can check again after a chest drop
+let chestDropCooldownUntil = 0; // Timestamp when we can drop again (after animation + buffer)
+let isChestAnimationPlaying = false; // Track if animation is currently playing
 
-// Chest drop animation takes ~25-30 seconds, so we wait before checking again
-const CHEST_DROP_COOLDOWN_MS = 30000;
+// Timing constants
+const CHEST_POST_ANIMATION_DELAY_MS = 10000; // 10 second buffer after animation ends
 
 // ============ Audience-Based Like Tracking ============
 
@@ -213,11 +272,15 @@ function createChestControls() {
 
     chestLog('createChestControls: Creating controls');
 
-    // Get the BetterNow toolbar's left section
-    const betterNowToolbar = document.getElementById('betternow-toolbar');
+    // Ensure BetterNow toolbar exists (create it if needed)
+    let betterNowToolbar = document.getElementById('betternow-toolbar');
     if (!betterNowToolbar) {
-        chestLog('createChestControls: BetterNow toolbar not found');
-        return;
+        chestLog('createChestControls: BetterNow toolbar not found, creating it');
+        betterNowToolbar = createBetterNowToolbar();
+        if (!betterNowToolbar) {
+            chestLog('createChestControls: Could not create BetterNow toolbar');
+            return;
+        }
     }
 
     const leftSection = betterNowToolbar.querySelector('.betternow-toolbar__left');
@@ -504,16 +567,15 @@ async function checkChestThreshold() {
         return;
     }
 
-    // Check cooldown first (avoids spammy logs during first 22s of chest drop animation)
+    // Check cooldown first
     const now = Date.now();
     if (now < chestDropCooldownUntil) {
         return; // Silent skip during cooldown
     }
 
-    // After cooldown, check if animation is still playing
-    if (isChestDropping()) {
-        chestLog('checkChestThreshold: Chest still dropping after cooldown, waiting...');
-        return;
+    // Check if animation is still playing
+    if (isChestAnimationPlaying || isChestDropping()) {
+        return; // Silent skip during animation
     }
 
     const currentLikes = getCurrentLikes();
@@ -592,67 +654,76 @@ async function openChest(currentLikes) {
     const startTime = Date.now();
     chestLog('openChest: Starting chest open sequence');
 
-    // Click the chest button
-    const chestButton = document.querySelector('.chest-button');
-    if (!chestButton) {
-        chestError('openChest: Chest button not found!');
-        isOpeningChest = false;
-        return;
-    }
-
-    chestLog('openChest: Clicking chest button');
-    chestButton.click();
-
-    // Wait for modal to appear
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Wait for Open button to appear (poll for up to 2 seconds)
-    chestLog('openChest: Waiting for Open button...');
-    let openButton = null;
-    for (let i = 0; i < 20; i++) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+    // Helper to find a button by text
+    const findButtonByText = (text) => {
         const buttons = document.querySelectorAll('.button--green');
         for (const btn of buttons) {
-            if (btn.textContent.trim() === 'Open') {
-                openButton = btn;
-                break;
+            if (btn.textContent.trim() === text || btn.textContent.includes(text)) {
+                return btn;
             }
         }
-        if (openButton) break;
-    }
+        return null;
+    };
 
-    if (!openButton) {
-        chestError('openChest: Open button not found after 2s!');
-        isOpeningChest = false;
-        return;
-    }
+    // Check current state - is "Make it Rain" already visible?
+    let makeItRainBtn = findButtonByText('Make it Rain');
+    if (makeItRainBtn) {
+        chestLog('openChest: Make it Rain already visible, skipping to that step');
+    } else {
+        // Check if "Open" button is visible
+        let openButton = findButtonByText('Open');
+        if (openButton) {
+            chestLog('openChest: Open button already visible, skipping chest click');
+        } else {
+            // Need to click chest button first
+            const chestButton = document.querySelector('.chest-button');
+            if (!chestButton) {
+                chestError('openChest: Chest button not found!');
+                isOpeningChest = false;
+                return;
+            }
 
-    chestLog('openChest: Clicking Open button');
-    openButton.click();
+            chestLog('openChest: Clicking chest button');
+            chestButton.click();
 
-    // Wait for Make it Rain button to appear (poll for up to 2 seconds)
-    chestLog('openChest: Waiting for Make it Rain button...');
-    let rainButton = null;
-    for (let i = 0; i < 20; i++) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        const buttons = document.querySelectorAll('.button--green');
-        for (const btn of buttons) {
-            if (btn.textContent.includes('Make it Rain')) {
-                rainButton = btn;
-                break;
+            // Wait for modal to appear
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Wait for Open button to appear (poll for up to 2 seconds)
+            chestLog('openChest: Waiting for Open button...');
+            for (let i = 0; i < 20; i++) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                openButton = findButtonByText('Open');
+                if (openButton) break;
+            }
+
+            if (!openButton) {
+                chestError('openChest: Open button not found after 2s!');
+                isOpeningChest = false;
+                return;
             }
         }
-        if (rainButton) break;
-    }
 
-    if (!rainButton) {
-        chestError('openChest: Make it Rain button not found after 2s!');
-        isOpeningChest = false;
-        return;
+        chestLog('openChest: Clicking Open button');
+        openButton.click();
+
+        // Wait for Make it Rain button to appear (poll for up to 2 seconds)
+        chestLog('openChest: Waiting for Make it Rain button...');
+        for (let i = 0; i < 20; i++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            makeItRainBtn = findButtonByText('Make it Rain');
+            if (makeItRainBtn) break;
+        }
+
+        if (!makeItRainBtn) {
+            chestError('openChest: Make it Rain button not found after 2s!');
+            isOpeningChest = false;
+            return;
+        }
     }
 
     chestLog('openChest: Clicking Make it Rain button');
-    rainButton.click();
+    makeItRainBtn.click();
 
     // Update tracking
     const previousLastChestLikes = lastChestOpenLikes;
@@ -660,7 +731,10 @@ async function openChest(currentLikes) {
     lastChestOpenLikes = currentLikes;
     chestOpenCount++;
     lastChestOpenTime = new Date().toISOString();
-    chestDropCooldownUntil = Date.now() + CHEST_DROP_COOLDOWN_MS;
+
+    // Mark animation as playing - cooldown will be set when animation ends
+    isChestAnimationPlaying = true;
+
     saveChestSettingsLocal();
 
     chestLog(`openChest: Chest opened! Dropped ${likesDropped.toLocaleString()} likes. lastChestOpenLikes: ${previousLastChestLikes.toLocaleString()} → ${lastChestOpenLikes.toLocaleString()}, session total: ${chestOpenCount}`);
@@ -676,13 +750,7 @@ async function openChest(currentLikes) {
     let tellButton = null;
     for (let i = 0; i < 20; i++) {
         await new Promise(resolve => setTimeout(resolve, 100));
-        const buttons = document.querySelectorAll('.button--green');
-        for (const btn of buttons) {
-            if (btn.textContent.includes('Tell Them')) {
-                tellButton = btn;
-                break;
-            }
-        }
+        tellButton = findButtonByText('Tell Them');
         if (tellButton) break;
     }
 
@@ -721,6 +789,7 @@ function startChestMonitoring() {
                 chestLog(`Audience likes changed: ${lastKnownAudienceLikes?.toLocaleString()} → ${currentLikes.toLocaleString()}`);
                 lastKnownAudienceLikes = currentLikes;
                 updateNoticeBar();
+                updateChestModalIfOpen();
                 checkChestThreshold();
             }
         });
@@ -753,9 +822,79 @@ function startChestMonitoring() {
         });
     }
 
+    // Watch for chest animation to detect manual chest drops
+    setupChestAnimationObserver();
+
     // Run an initial check
     updateNoticeBar();
     checkChestThreshold();
+}
+
+// Observer to detect when chest animation appears/disappears
+let chestAnimationObserver = null;
+
+function setupChestAnimationObserver() {
+    if (chestAnimationObserver) return;
+
+    chestAnimationObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            // Check for animation ADDED (chest drop started)
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.matches?.('app-chest-lottie') || node.querySelector?.('app-chest-lottie')) {
+                        chestLog('Chest animation started');
+                        isChestAnimationPlaying = true;
+
+                        // If we didn't trigger this (manual drop), reset the counter
+                        if (!isOpeningChest) {
+                            const currentLikes = getCurrentLikes();
+                            chestLog('Manual chest drop detected, resetting counter at', currentLikes.toLocaleString(), 'likes');
+                            lastChestOpenLikes = currentLikes;
+                            chestOpenCount++;
+                            lastChestOpenTime = new Date().toISOString();
+                            saveChestSettingsLocal();
+                        }
+
+                        updateNoticeBar();
+                        return;
+                    }
+                }
+            }
+
+            // Check for animation REMOVED (chest drop finished)
+            for (const node of mutation.removedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.matches?.('app-chest-lottie') || node.querySelector?.('app-chest-lottie')) {
+                        chestLog('Chest animation ended, starting 10s cooldown');
+                        isChestAnimationPlaying = false;
+                        chestDropCooldownUntil = Date.now() + CHEST_POST_ANIMATION_DELAY_MS;
+                        updateNoticeBar();
+
+                        // Schedule re-check after cooldown
+                        setTimeout(() => {
+                            if (autoChestEnabled && isBroadcasting()) {
+                                chestLog('Post-cooldown re-check triggered');
+                                lastCheckedLikes = null;
+                                checkChestThreshold();
+                            }
+                        }, CHEST_POST_ANIMATION_DELAY_MS + 1000);
+
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    chestAnimationObserver.observe(document.body, { childList: true, subtree: true });
+    chestLog('setupChestAnimationObserver: Watching for chest animation start/end');
+}
+
+function stopChestAnimationObserver() {
+    if (chestAnimationObserver) {
+        chestAnimationObserver.disconnect();
+        chestAnimationObserver = null;
+    }
 }
 
 function stopChestMonitoring() {
@@ -769,6 +908,7 @@ function stopChestMonitoring() {
         chestObserver.disconnect();
         chestObserver = null;
     }
+    stopChestAnimationObserver();
     hideNoticeBar();
 }
 
@@ -786,6 +926,89 @@ function checkBroadcastStatus() {
         stopChestMonitoring();
     }
 }
+
+// ============ Chest UI Override ============
+// Override YouNow's chest modal to show BetterNow's calculated like count
+
+function overrideChestModalLikes() {
+    // Find the chest modal - can be either type
+    const chestModal = document.querySelector('app-chest-modal, app-sidebar-modal-chest-broadcaster-education');
+    if (!chestModal) {
+        chestLog('overrideChestModalLikes: Modal not found');
+        return;
+    }
+
+    const currentLikes = getCurrentLikes();
+    const likesInChest = Math.max(0, currentLikes - lastChestOpenLikes);
+
+    // Target the specific likes value element - try both selectors
+    // education modal: .education-chest .total-likes .value
+    // regular modal: .total-likes .value
+    const likesValueEl = chestModal.querySelector('.education-chest .total-likes .value') ||
+        chestModal.querySelector('.total-likes .value');
+
+    if (likesValueEl) {
+        const currentText = likesValueEl.textContent.trim();
+        const newText = likesInChest.toLocaleString();
+
+        if (currentText !== newText) {
+            likesValueEl.textContent = newText;
+            chestLog(`Chest modal UI: ${currentText} → ${newText}`);
+        }
+    } else {
+        chestLog('overrideChestModalLikes: .total-likes .value not found');
+    }
+}
+
+// Observer to detect chest modal opening
+let chestModalObserver = null;
+let chestModalOpen = false;
+
+function setupChestModalObserver() {
+    if (chestModalObserver) return;
+
+    chestModalObserver = new MutationObserver((mutations) => {
+        // Check if modal exists now (handles both adding and class/style changes)
+        // The chest modal can be either app-chest-modal OR app-sidebar-modal-chest-broadcaster-education
+        const modalExists = document.querySelector('app-chest-modal, app-sidebar-modal-chest-broadcaster-education') !== null;
+
+        if (modalExists && !chestModalOpen) {
+            chestLog('Chest modal opened');
+            chestModalOpen = true;
+            // Initial override after short delay for Angular to render
+            setTimeout(() => {
+                overrideChestModalLikes();
+            }, 100);
+        } else if (!modalExists && chestModalOpen) {
+            chestLog('Chest modal closed');
+            chestModalOpen = false;
+        }
+    });
+
+    chestModalObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'hidden']
+    });
+
+    chestLog('Chest modal observer initialized');
+}
+
+function updateChestModalIfOpen() {
+    if (!chestModalOpen) return;
+
+    const modal = document.querySelector('app-chest-modal');
+    if (modal) {
+        overrideChestModalLikes();
+    } else {
+        chestLog('Chest modal flag was true but modal not found, resetting flag');
+        chestModalOpen = false;
+    }
+}
+
+// Start observing for chest modal
+setupChestModalObserver();
 
 // Expose debug function globally
 window.debugChest = function() {
