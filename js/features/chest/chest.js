@@ -23,6 +23,10 @@ let isOpeningChest = false;
 let lastCheckedLikes = null;
 let chestOpenCount = 0; // Track how many chests opened this session
 let lastChestOpenTime = null; // Track when last chest was opened
+let chestDropCooldownUntil = 0; // Timestamp when we can check again after a chest drop
+
+// Chest drop animation takes ~22-25 seconds, so we wait before checking again
+const CHEST_DROP_COOLDOWN_MS = 22000;
 
 function parseDisplayLikes(text) {
     // Parse "1,001" or "1.5K" or "2.3M" etc
@@ -46,7 +50,7 @@ function getCurrentLikesFromToolbar() {
         chestLog('getCurrentLikesFromToolbar: toolbar__right not found');
         return null;
     }
-    
+
     const likeIcon = toolbarRight.querySelector('.ynicon-like');
     if (!likeIcon) {
         chestLog('getCurrentLikesFromToolbar: like icon not found');
@@ -99,7 +103,7 @@ function createChestControls() {
         chestLog('createChestControls: BetterNow toolbar not found');
         return;
     }
-    
+
     const leftSection = betterNowToolbar.querySelector('.betternow-toolbar__left');
     if (!leftSection) {
         chestLog('createChestControls: Left section not found');
@@ -123,22 +127,28 @@ function createChestControls() {
         document.head.appendChild(style);
     }
 
+    const btnStyle = window.BETTERNOW_BUTTON_STYLE || `
+        border: none;
+        color: var(--color-white, #fff);
+        padding: 0.35em 0.7em;
+        border-radius: 0.4em;
+        font-size: 0.7em;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+        flex-shrink: 0;
+    `;
+
     const controlsDiv = document.createElement('div');
     controlsDiv.id = 'auto-chest-controls';
-    controlsDiv.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+    controlsDiv.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-shrink: 0;';
     controlsDiv.innerHTML = `
         <button id="auto-chest-toggle" title="Auto Chest Drop" style="
+            ${btnStyle}
             background: var(--color-mediumgray, #888);
-            border: none;
-            color: var(--color-white, #fff);
-            padding: 0.35em 0.5em 0.2em 0.68em;
-            border-radius: 0.4em;
-            font-size: 0.7em;
-            font-weight: 600;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            cursor: pointer;
-            font-family: inherit;
         ">AUTO CHEST</button>
         <div id="chest-threshold-controls" style="display: none; align-items: center; gap: 8px;">
             <input id="chest-threshold-input" type="text" value="${autoChestThreshold ? autoChestThreshold.toLocaleString() : ''}" placeholder="Likes" style="
@@ -179,6 +189,12 @@ function createChestControls() {
 
     leftSection.appendChild(controlsDiv);
 
+    // Move chest marker to end so chest is always last
+    const chestMarker = document.getElementById('betternow-chest-marker');
+    if (chestMarker) {
+        leftSection.appendChild(chestMarker);
+    }
+
     // Toggle button
     const toggleBtn = document.getElementById('auto-chest-toggle');
     const thresholdControls = document.getElementById('chest-threshold-controls');
@@ -209,7 +225,7 @@ function createChestControls() {
     const thresholdInput = document.getElementById('chest-threshold-input');
     const updateBtn = document.getElementById('chest-threshold-update');
     const updateStatus = document.getElementById('chest-update-status');
-    
+
     // Store the last saved value to detect changes
     let lastSavedValue = autoChestThreshold ? autoChestThreshold.toLocaleString() : '';
 
@@ -223,7 +239,7 @@ function createChestControls() {
     // Format input with commas as user types, support K/M suffixes
     thresholdInput.addEventListener('input', () => {
         let raw = thresholdInput.value.trim();
-        
+
         // Check for K or M suffix
         const upperRaw = raw.toUpperCase();
         let multiplier = 1;
@@ -234,14 +250,14 @@ function createChestControls() {
             multiplier = 1000000;
             raw = raw.slice(0, -1);
         }
-        
+
         // Strip non-digits and parse
         const digits = raw.replace(/[^\d]/g, '');
         if (digits) {
             const num = parseInt(digits) * multiplier;
             thresholdInput.value = num.toLocaleString();
         }
-        
+
         // Auto-resize input based on content
         const tempSpan = document.createElement('span');
         tempSpan.style.cssText = 'font-size: .8rem; font-weight: 600; font-family: inherit; visibility: hidden; position: absolute;';
@@ -250,7 +266,7 @@ function createChestControls() {
         const newWidth = Math.max(70, tempSpan.offsetWidth + 30);
         thresholdInput.style.width = newWidth + 'px';
         tempSpan.remove();
-        
+
         // Show/hide Set button based on whether value has changed
         if (thresholdInput.value !== lastSavedValue && thresholdInput.value !== '') {
             updateBtn.style.display = 'inline-block';
@@ -258,7 +274,7 @@ function createChestControls() {
             updateBtn.style.display = 'none';
         }
     });
-    
+
     // Trigger resize on initial load if there's a value
     if (thresholdInput.value) {
         // Just resize, don't show button
@@ -281,7 +297,7 @@ function createChestControls() {
 
             // Reformat with commas
             thresholdInput.value = value.toLocaleString();
-            
+
             // Update last saved value and hide Set button
             lastSavedValue = thresholdInput.value;
             updateBtn.style.display = 'none';
@@ -344,28 +360,35 @@ function getChestState() {
 
 async function checkChestThreshold() {
     const state = getChestState();
-    
+
     if (!autoChestEnabled) {
         return;
     }
-    
+
     if (!isBroadcasting()) {
         chestLog('checkChestThreshold: Not broadcasting');
         return;
     }
-    
+
     if (isOpeningChest) {
         chestLog('checkChestThreshold: Already opening chest, skipping');
         return;
     }
-    
+
     if (autoChestThreshold === null || autoChestThreshold <= 0) {
         chestLog('checkChestThreshold: No valid threshold set');
         return;
     }
-    
+
+    // Check cooldown first (avoids spammy logs during first 20s of chest drop animation)
+    const now = Date.now();
+    if (now < chestDropCooldownUntil) {
+        return; // Silent skip during cooldown
+    }
+
+    // After cooldown, check if animation is still playing
     if (isChestDropping()) {
-        chestLog('checkChestThreshold: Chest is currently dropping, skipping');
+        chestLog('checkChestThreshold: Chest still dropping after cooldown, waiting...');
         return;
     }
 
@@ -379,7 +402,7 @@ async function checkChestThreshold() {
     if (currentLikes === lastCheckedLikes) {
         return;
     }
-    
+
     const previousLikes = lastCheckedLikes;
     lastCheckedLikes = currentLikes;
     saveChestSettingsLocal();
@@ -510,6 +533,7 @@ async function openChest(currentLikes) {
     lastChestOpenLikes = currentLikes;
     chestOpenCount++;
     lastChestOpenTime = new Date().toISOString();
+    chestDropCooldownUntil = Date.now() + CHEST_DROP_COOLDOWN_MS; // Wait 20s for drop animation
     saveChestSettingsLocal();
 
     chestLog(`openChest: Chest opened! lastChestOpenLikes: ${previousLastChestLikes} → ${lastChestOpenLikes}, session total: ${chestOpenCount}`);
@@ -586,7 +610,7 @@ function stopChestMonitoring() {
 function checkBroadcastStatus() {
     const broadcasting = isBroadcasting();
     chestLog('checkBroadcastStatus: broadcasting =', broadcasting, ', autoChestEnabled =', autoChestEnabled);
-    
+
     if (broadcasting) {
         createChestControls();
         if (autoChestEnabled) {
