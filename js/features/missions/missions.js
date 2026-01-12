@@ -1,7 +1,7 @@
 // ============ Missions Auto-Claim ============
 // Automatically claims completed daily missions via API
 
-const MISSIONS_DEBUG = true;
+const MISSIONS_DEBUG = false;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
