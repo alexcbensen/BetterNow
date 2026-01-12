@@ -1,5 +1,6 @@
 // ============ Chest Auto-Drop ============
 // Automatically opens treasure chest when like threshold is reached
+// Uses audience list for accurate like tracking (not rounded toolbar values)
 
 // Debug logging - set to false for production
 const CHEST_DEBUG = false;
@@ -19,8 +20,10 @@ function chestError(...args) {
 }
 
 let chestObserver = null;
+let audienceObserver = null;
 let isOpeningChest = false;
 let lastCheckedLikes = null;
+let lastKnownAudienceLikes = null; // Track last total to avoid processing non-like changes
 let chestOpenCount = 0; // Track how many chests opened this session
 let lastChestOpenTime = null; // Track when last chest was opened
 let chestDropCooldownUntil = 0; // Timestamp when we can check again after a chest drop
@@ -28,50 +31,87 @@ let chestDropCooldownUntil = 0; // Timestamp when we can check again after a che
 // Chest drop animation takes ~22-25 seconds, so we wait before checking again
 const CHEST_DROP_COOLDOWN_MS = 22000;
 
-function parseDisplayLikes(text) {
-    // Parse "1,001" or "1.5K" or "2.3M" etc
-    if (!text) return 0;
-    text = text.trim().replace(/,/g, '');
+// ============ Audience-Based Like Tracking ============
+
+function getAudienceLikes() {
+    let total = 0;
+    const viewers = document.querySelectorAll('app-audience .viewer-wrapper');
+
+    viewers.forEach(viewer => {
+        const likesEl = viewer.querySelector('.topfans-likes-icon')?.parentElement;
+        if (likesEl) {
+            // Extract just the number, removing commas and any extra text
+            const text = likesEl.textContent.trim().replace(/,/g, '');
+            const match = text.match(/[\d,]+/);
+            if (match) {
+                total += parseInt(match[0].replace(/,/g, '')) || 0;
+            }
+        }
+    });
+
+    return total;
+}
+
+function getAudienceBreakdown() {
+    const fans = [];
+    const viewers = document.querySelectorAll('app-audience .viewer-wrapper');
+
+    viewers.forEach(viewer => {
+        const nameEl = viewer.querySelector('.user-card__header .truncate');
+        const likesEl = viewer.querySelector('.topfans-likes-icon')?.parentElement;
+
+        if (nameEl && likesEl) {
+            const name = nameEl.textContent.trim();
+            const text = likesEl.textContent.trim().replace(/,/g, '');
+            const match = text.match(/[\d,]+/);
+            const likes = match ? parseInt(match[0].replace(/,/g, '')) : 0;
+            if (likes > 0) {
+                fans.push({ name, likes });
+            }
+        }
+    });
+
+    return fans;
+}
+
+// Fallback to toolbar if audience list isn't available
+function getCurrentLikesFromToolbar() {
+    const toolbarRight = document.querySelector('.toolbar__right');
+    if (!toolbarRight) return null;
+
+    const likeIcon = toolbarRight.querySelector('.ynicon-like');
+    if (!likeIcon) return null;
+
+    const valueDiv = likeIcon.parentElement?.querySelector('.toolbar__value');
+    if (!valueDiv) return null;
+
+    const text = valueDiv.textContent.trim().replace(/,/g, '');
 
     if (text.endsWith('K')) {
         return parseFloat(text) * 1000;
     } else if (text.endsWith('M')) {
         return parseFloat(text) * 1000000;
-    } else if (text.endsWith('B')) {
-        return parseFloat(text) * 1000000000;
     }
     return parseInt(text) || 0;
 }
 
-function getCurrentLikesFromToolbar() {
-    // Find the likes in toolbar__right (not the partner tiers progress in the middle)
-    const toolbarRight = document.querySelector('.toolbar__right');
-    if (!toolbarRight) {
-        chestLog('getCurrentLikesFromToolbar: toolbar__right not found');
-        return null;
+// Get current likes - prefer audience list, fallback to toolbar
+function getCurrentLikes() {
+    const audienceLikes = getAudienceLikes();
+
+    // If audience list has data, use it (more accurate)
+    if (audienceLikes > 0) {
+        return audienceLikes;
     }
 
-    const likeIcon = toolbarRight.querySelector('.ynicon-like');
-    if (!likeIcon) {
-        chestLog('getCurrentLikesFromToolbar: like icon not found');
-        return null;
-    }
-
-    const valueDiv = likeIcon.parentElement?.querySelector('.toolbar__value');
-    if (!valueDiv) {
-        chestLog('getCurrentLikesFromToolbar: toolbar__value not found');
-        return null;
-    }
-
-    const likes = parseDisplayLikes(valueDiv.textContent);
-    return likes;
+    // Fallback to toolbar
+    return getCurrentLikesFromToolbar() || 0;
 }
 
 function isBroadcasting() {
     // Check if the END button exists (only visible when broadcasting)
     const endButton = document.querySelector('.toolbar .button--red');
-    const result = endButton !== null;
-    return result;
+    return endButton !== null;
 }
 
 function createChestControls() {
@@ -343,24 +383,29 @@ function isChestDropping() {
 }
 
 function getChestState() {
+    const currentLikes = getCurrentLikes();
+    const audienceLikes = getAudienceLikes();
+    const toolbarLikes = getCurrentLikesFromToolbar();
+
     return {
         enabled: autoChestEnabled,
         threshold: autoChestThreshold,
         lastChestOpenLikes: lastChestOpenLikes,
         lastCheckedLikes: lastCheckedLikes,
-        currentLikes: getCurrentLikesFromToolbar(),
+        currentLikes: currentLikes,
+        audienceLikes: audienceLikes,
+        toolbarLikes: toolbarLikes,
+        likesInChest: currentLikes - lastChestOpenLikes,
         isOpeningChest: isOpeningChest,
         isChestDropping: isChestDropping(),
         isBroadcasting: isBroadcasting(),
-        chestCount: getCurrentLikesFromToolbar() - lastChestOpenLikes,
         sessionChestsOpened: chestOpenCount,
-        lastChestOpenTime: lastChestOpenTime
+        lastChestOpenTime: lastChestOpenTime,
+        audienceBreakdown: getAudienceBreakdown()
     };
 }
 
 async function checkChestThreshold() {
-    const state = getChestState();
-
     if (!autoChestEnabled) {
         return;
     }
@@ -380,7 +425,7 @@ async function checkChestThreshold() {
         return;
     }
 
-    // Check cooldown first (avoids spammy logs during first 20s of chest drop animation)
+    // Check cooldown first (avoids spammy logs during first 22s of chest drop animation)
     const now = Date.now();
     if (now < chestDropCooldownUntil) {
         return; // Silent skip during cooldown
@@ -392,37 +437,39 @@ async function checkChestThreshold() {
         return;
     }
 
-    const currentLikes = getCurrentLikesFromToolbar();
-    if (currentLikes === null) {
-        chestWarn('checkChestThreshold: Could not get current likes');
+    const currentLikes = getCurrentLikes();
+    if (currentLikes === 0) {
+        chestLog('checkChestThreshold: Could not get current likes (audience list may be empty)');
         return;
     }
 
-    // Only check if likes changed
-    if (currentLikes === lastCheckedLikes) {
-        return;
+    // Only log if likes changed
+    if (currentLikes !== lastCheckedLikes) {
+        const previousLikes = lastCheckedLikes;
+        lastCheckedLikes = currentLikes;
+        saveChestSettingsLocal();
+
+        if (previousLikes !== null) {
+            chestLog(`Likes changed: ${previousLikes.toLocaleString()} → ${currentLikes.toLocaleString()}`);
+        }
+    } else {
+        return; // No change, skip further processing
     }
 
-    const previousLikes = lastCheckedLikes;
-    lastCheckedLikes = currentLikes;
-    saveChestSettingsLocal();
-
-    chestLog(`Likes changed: ${previousLikes} → ${currentLikes}`);
-
-    // Detect new broadcast (likes reset or lower than last opened)
-    if (currentLikes < lastChestOpenLikes) {
-        chestLog(`New broadcast detected: currentLikes (${currentLikes}) < lastChestOpenLikes (${lastChestOpenLikes}), resetting`);
+    // Detect new broadcast (likes reset or significantly lower than last opened)
+    if (currentLikes < lastChestOpenLikes - 1000) { // Allow small fluctuations
+        chestLog(`New broadcast detected: currentLikes (${currentLikes.toLocaleString()}) << lastChestOpenLikes (${lastChestOpenLikes.toLocaleString()}), resetting`);
         lastChestOpenLikes = 0;
         saveChestSettingsLocal();
     }
 
-    // Calculate chest count
-    const likesSinceLastChest = currentLikes - lastChestOpenLikes;
+    // Calculate likes in chest
+    const likesInChest = currentLikes - lastChestOpenLikes;
 
-    chestLog(`Threshold check: ${likesSinceLastChest} likes since last chest, threshold: ${autoChestThreshold}`);
+    chestLog(`Chest status: ${likesInChest.toLocaleString()} likes in chest, threshold: ${autoChestThreshold.toLocaleString()}`);
 
     // Check if threshold reached
-    if (likesSinceLastChest >= autoChestThreshold) {
+    if (likesInChest >= autoChestThreshold) {
         chestLog(`*** THRESHOLD REACHED! Opening chest... ***`);
         await openChest(currentLikes);
     }
@@ -466,17 +513,10 @@ async function openChest(currentLikes) {
     const startTime = Date.now();
     chestLog('openChest: Starting chest open sequence');
 
-    // Wait for chest button with retry loop (DOM may be mid-update)
-    chestLog('openChest: Waiting for chest button...');
-    let chestButton = null;
-    for (let i = 0; i < 20; i++) {
-        chestButton = document.querySelector('.chest-button');
-        if (chestButton) break;
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
+    // Click the chest button
+    const chestButton = document.querySelector('.chest-button');
     if (!chestButton) {
-        chestError('openChest: Chest button not found after 2s!');
+        chestError('openChest: Chest button not found!');
         isOpeningChest = false;
         return;
     }
@@ -537,13 +577,14 @@ async function openChest(currentLikes) {
 
     // Update tracking
     const previousLastChestLikes = lastChestOpenLikes;
+    const likesDropped = currentLikes - previousLastChestLikes;
     lastChestOpenLikes = currentLikes;
     chestOpenCount++;
     lastChestOpenTime = new Date().toISOString();
-    chestDropCooldownUntil = Date.now() + CHEST_DROP_COOLDOWN_MS; // Wait 20s for drop animation
+    chestDropCooldownUntil = Date.now() + CHEST_DROP_COOLDOWN_MS;
     saveChestSettingsLocal();
 
-    chestLog(`openChest: Chest opened! lastChestOpenLikes: ${previousLastChestLikes} → ${lastChestOpenLikes}, session total: ${chestOpenCount}`);
+    chestLog(`openChest: Chest opened! Dropped ${likesDropped.toLocaleString()} likes. lastChestOpenLikes: ${previousLastChestLikes.toLocaleString()} → ${lastChestOpenLikes.toLocaleString()}, session total: ${chestOpenCount}`);
 
     // Wait a bit for the chest animation/modal transition
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -579,36 +620,68 @@ async function openChest(currentLikes) {
 }
 
 function startChestMonitoring() {
-    if (chestObserver) {
-        chestLog('startChestMonitoring: Already monitoring');
-        return;
+    chestLog('startChestMonitoring: Starting audience observer');
+
+    // Stop existing observers
+    stopChestMonitoring();
+
+    // Initialize last known likes
+    lastKnownAudienceLikes = getAudienceLikes();
+    chestLog('startChestMonitoring: Initial audience likes:', lastKnownAudienceLikes);
+
+    // Watch the audience list for changes (this is where likes update in real-time)
+    const audienceList = document.querySelector('app-audience');
+    if (audienceList) {
+        audienceObserver = new MutationObserver(() => {
+            // Only process if likes actually changed (ignore joins/leaves/badge updates)
+            const currentLikes = getAudienceLikes();
+            if (currentLikes !== lastKnownAudienceLikes) {
+                chestLog(`Audience likes changed: ${lastKnownAudienceLikes?.toLocaleString()} → ${currentLikes.toLocaleString()}`);
+                lastKnownAudienceLikes = currentLikes;
+                checkChestThreshold();
+            }
+        });
+
+        audienceObserver.observe(audienceList, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
+
+        chestLog('startChestMonitoring: Watching audience list for like changes only');
+    } else {
+        chestWarn('startChestMonitoring: Audience list not found, falling back to toolbar');
     }
 
+    // Also watch toolbar as backup (in case audience list isn't visible)
     const toolbar = document.querySelector('.toolbar');
-    if (!toolbar) {
-        chestWarn('startChestMonitoring: Toolbar not found');
-        return;
+    if (toolbar) {
+        chestObserver = new MutationObserver(() => {
+            // Only use toolbar if audience observer isn't working
+            if (!audienceObserver) {
+                checkChestThreshold();
+            }
+        });
+
+        chestObserver.observe(toolbar, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
     }
 
-    chestLog('startChestMonitoring: Starting observer');
-
-    chestObserver = new MutationObserver(() => {
-        checkChestThreshold();
-    });
-
-    chestObserver.observe(toolbar, {
-        childList: true,
-        subtree: true,
-        characterData: true
-    });
-
-    // Also run an initial check
+    // Run an initial check
     checkChestThreshold();
 }
 
 function stopChestMonitoring() {
+    if (audienceObserver) {
+        chestLog('stopChestMonitoring: Stopping audience observer');
+        audienceObserver.disconnect();
+        audienceObserver = null;
+    }
     if (chestObserver) {
-        chestLog('stopChestMonitoring: Stopping observer');
+        chestLog('stopChestMonitoring: Stopping toolbar observer');
         chestObserver.disconnect();
         chestObserver = null;
     }
@@ -633,8 +706,46 @@ function checkBroadcastStatus() {
 window.debugChest = function() {
     const state = getChestState();
     console.log('[BetterNow Chest] Current State:');
-    console.table(state);
+    console.log('  Enabled:', state.enabled);
+    console.log('  Threshold:', state.threshold?.toLocaleString());
+    console.log('  Current Likes (audience):', state.audienceLikes?.toLocaleString());
+    console.log('  Current Likes (toolbar):', state.toolbarLikes?.toLocaleString());
+    console.log('  Last Chest Opened At:', state.lastChestOpenLikes?.toLocaleString());
+    console.log('  Likes In Chest:', state.likesInChest?.toLocaleString());
+    console.log('  Is Opening:', state.isOpeningChest);
+    console.log('  Is Dropping:', state.isChestDropping);
+    console.log('  Session Drops:', state.sessionChestsOpened);
+    console.log('');
+    console.log('  Audience Breakdown:');
+    state.audienceBreakdown.forEach((fan, i) => {
+        console.log(`    #${i+1} ${fan.name}: ${fan.likes.toLocaleString()}`);
+    });
     return state;
 };
 
-chestLog('Chest module initialized');
+// Quick chest status
+window.chestStatus = function() {
+    const currentLikes = getCurrentLikes();
+    const likesInChest = currentLikes - lastChestOpenLikes;
+    const threshold = autoChestThreshold || 0;
+    const untilDrop = Math.max(0, threshold - likesInChest);
+
+    console.log('🎁 === Chest Status ===');
+    console.log(`📊 Total likes: ${currentLikes.toLocaleString()}`);
+    console.log(`📦 Last dropped at: ${lastChestOpenLikes.toLocaleString()}`);
+    console.log(`✨ In chest now: ${likesInChest.toLocaleString()}`);
+    console.log(`🎯 Threshold: ${threshold.toLocaleString()}`);
+    console.log(`⏳ Until drop: ${untilDrop.toLocaleString()} more likes`);
+};
+
+// Sync chest tracking to current likes (useful after a break or manual drop)
+window.syncChest = function() {
+    const currentLikes = getCurrentLikes();
+    lastChestOpenLikes = currentLikes;
+    lastCheckedLikes = currentLikes;
+    saveChestSettingsLocal();
+    console.log(`✅ Chest synced! Tracking reset to ${currentLikes.toLocaleString()} likes`);
+    console.log('💡 Chest now shows 0 likes accumulated');
+};
+
+chestLog('Chest module initialized (audience-based tracking)');
