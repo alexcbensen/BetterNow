@@ -3,7 +3,7 @@
 // Uses audience list for accurate like tracking (not rounded toolbar values)
 
 // Debug logging - set to true for debugging sync issues
-const CHEST_DEBUG = true;
+const CHEST_DEBUG = false;
 
 // Timing constants for chest drop sequence
 const CHEST_DROP_TOTAL_DELAY_MS = 15000; // Total time from threshold to drop
