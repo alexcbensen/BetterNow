@@ -9,14 +9,14 @@
 const myUsername = "Alex";
 const EXCLUDED_FROM_AUTO_CHEST = [myUsername.toLowerCase()]; // Excluded usernames (lowercase)
 
-// Developer badge user IDs (get developer badge in chat/profile)
-const DEVELOPER_USER_IDS = ["60578594", "60974148"];
+// Developer badge user IDs (get developer badge in chat/profile) - loaded from Firebase
+let DEVELOPER_USER_IDS = ["60578594", "60974148"];
 
-// Admin-only user IDs (admins without developer badge)
-const ADMIN_ONLY_USER_IDS = []; // 61819309
+// Admin-only user IDs (admins without developer badge) - loaded from Firebase
+let ADMIN_ONLY_USER_IDS = []; // 61819309
 
-// All admin user IDs (developers + admin-only)
-const ADMIN_USER_IDS = [...DEVELOPER_USER_IDS, ...ADMIN_ONLY_USER_IDS];
+// All admin user IDs (developers + admin-only) - computed after Firebase load
+let ADMIN_USER_IDS = [...DEVELOPER_USER_IDS, ...ADMIN_ONLY_USER_IDS];
 
 // Current user info (detected from page)
 let currentUserId = null;

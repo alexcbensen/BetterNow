@@ -123,6 +123,14 @@ function applyFirebaseSettings() {
             betternowUserStyle.glowOpacity = 100;
         }
     }
+    if (firebaseSettings.developerUserIds && Array.isArray(firebaseSettings.developerUserIds)) {
+        DEVELOPER_USER_IDS = firebaseSettings.developerUserIds;
+    }
+    if (firebaseSettings.adminOnlyUserIds && Array.isArray(firebaseSettings.adminOnlyUserIds)) {
+        ADMIN_ONLY_USER_IDS = firebaseSettings.adminOnlyUserIds;
+    }
+    // Recompute ADMIN_USER_IDS after loading
+    ADMIN_USER_IDS = [...DEVELOPER_USER_IDS, ...ADMIN_ONLY_USER_IDS];
 
     // Re-apply chat styles with new settings
     applyChatStyles();
@@ -348,7 +356,7 @@ async function saveSettingsToFirebase() {
         }
 
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle&updateMask.fieldPaths=developerUserIds&updateMask.fieldPaths=adminOnlyUserIds`,
             {
                 method: 'PATCH',
                 headers: {
@@ -416,6 +424,16 @@ async function saveSettingsToFirebase() {
                                     glowIntensity: { integerValue: betternowUserStyle.glowIntensity || 6 },
                                     glowOpacity: { integerValue: betternowUserStyle.glowOpacity || 100 }
                                 }
+                            }
+                        },
+                        developerUserIds: {
+                            arrayValue: {
+                                values: DEVELOPER_USER_IDS.map(id => ({ stringValue: String(id) }))
+                            }
+                        },
+                        adminOnlyUserIds: {
+                            arrayValue: {
+                                values: ADMIN_ONLY_USER_IDS.map(id => ({ stringValue: String(id) }))
                             }
                         }
                     }
