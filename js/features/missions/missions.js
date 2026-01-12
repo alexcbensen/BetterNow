@@ -3,7 +3,7 @@
 // First claim: captures TDI from UI click
 // Future claims: uses API directly with captured TDI
 
-const MISSIONS_DEBUG = true;
+const MISSIONS_DEBUG = false;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
