@@ -15,32 +15,61 @@ let extensionDisabled = false;
 function isCurrentUserBlocked() {
     // Check if the logged-in user is in the hidden broadcasters list
     if (!currentUserId) return false;
-    
+
     // Check by userId
     if (hiddenUserIds.includes(currentUserId) || hiddenUserIds.includes(String(currentUserId))) {
         return true;
     }
-    
+
     return false;
 }
 
 // ============ Current User Detection ============
 
 async function detectCurrentUser() {
-    const usernameEl = document.querySelector('app-profile-dropdown .username');
-    if (!usernameEl || currentUserId) return;
+    // Skip if already detected
+    if (currentUserId) return;
 
-    const username = usernameEl.textContent.trim();
-    if (!username) return;
+    // Method 1: Try to decode from nft cookie (base64 encoded userId)
+    const nftMatch = document.cookie.match(/nft=([^;]+)/);
+    if (nftMatch) {
+        try {
+            const decoded = atob(decodeURIComponent(nftMatch[1]));
+            if (/^\d+$/.test(decoded)) {
+                currentUserId = decoded;
+                return;
+            }
+        } catch (e) {}
+    }
 
-    try {
-        const response = await fetch(`https://cdn.younow.com/php/api/channel/getInfo/user=${username}`);
-        const data = await response.json();
-        if (data.userId) {
-            currentUserId = String(data.userId);
+    // Method 2: Check performance API for userId in requests
+    const entries = performance.getEntriesByType('resource');
+    for (const entry of entries) {
+        if (entry.name && entry.name.includes('userId=')) {
+            const match = entry.name.match(/userId=(\d+)/);
+            if (match) {
+                currentUserId = match[1];
+                return;
+            }
         }
-    } catch (e) {
-        // Silently fail
+    }
+
+    // Method 3: Try from username in profile dropdown (original method)
+    const usernameEl = document.querySelector('app-profile-dropdown .username');
+    if (usernameEl) {
+        const username = usernameEl.textContent.trim();
+        if (username) {
+            try {
+                const response = await fetch(`https://cdn.younow.com/php/api/channel/getInfo/user=${username}`);
+                const data = await response.json();
+                if (data.userId) {
+                    currentUserId = String(data.userId);
+                    return;
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        }
     }
 }
 
@@ -54,7 +83,7 @@ setInterval(detectCurrentUser, 5000);
 let initAttempts = 0;
 const initInterval = setInterval(() => {
     initAttempts++;
-    
+
     // Don't initialize if not logged in
     if (!currentUserId) {
         if (initAttempts > 20) {
@@ -63,14 +92,14 @@ const initInterval = setInterval(() => {
         }
         return;
     }
-    
+
     // Check if user is blocked
     if (isCurrentUserBlocked()) {
         extensionDisabled = true;
         clearInterval(initInterval);
         return; // Don't initialize anything
     }
-    
+
     // User is logged in and not blocked - initialize
     clearInterval(initInterval);
     initializeExtension();
@@ -78,7 +107,7 @@ const initInterval = setInterval(() => {
 
 function initializeExtension() {
     if (extensionDisabled) return;
-    
+
     applyChatStyles();
     hideBroadcasters();
     hideCarouselBroadcasters();
@@ -177,15 +206,15 @@ function initializeExtension() {
         const shouldCheck = mutations.some(mutation => {
             if (mutation.type === 'childList') {
                 return Array.from(mutation.addedNodes).some(node =>
-                    node.nodeType === 1 && (
-                        node.matches?.('.toolbar, .button--red, .chest-button') ||
-                        node.querySelector?.('.toolbar, .button--red, .chest-button')
-                    )
+                        node.nodeType === 1 && (
+                            node.matches?.('.toolbar, .button--red, .chest-button') ||
+                            node.querySelector?.('.toolbar, .button--red, .chest-button')
+                        )
                 ) || Array.from(mutation.removedNodes).some(node =>
-                    node.nodeType === 1 && (
-                        node.matches?.('.button--red, .chest-button') ||
-                        node.querySelector?.('.button--red, .chest-button')
-                    )
+                        node.nodeType === 1 && (
+                            node.matches?.('.button--red, .chest-button') ||
+                            node.querySelector?.('.button--red, .chest-button')
+                        )
                 );
             }
             return false;
@@ -203,3 +232,41 @@ function initializeExtension() {
     // Also run after a short delay to catch late-loading elements
     setTimeout(checkBroadcastStatus, 1000);
 }
+
+// ============ BetterNow Toolbar Initialization ============
+// This runs AFTER all scripts are loaded, so all functions are available
+
+function initBetterNowToolbar() {
+    // Try to create toolbar immediately
+    if (isOnLiveBroadcast()) {
+        createBetterNowToolbar();
+    }
+
+    // Also watch for navigation/DOM changes to create toolbar when needed
+    const toolbarObserver = new MutationObserver((mutations) => {
+        // Skip if toolbar already exists
+        if (document.getElementById('betternow-toolbar')) return;
+
+        // Check for relevant changes
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.matches?.('app-top-toolbar, .broadcaster-is-online, .video-player') ||
+                            node.querySelector?.('app-top-toolbar, .broadcaster-is-online, .video-player')) {
+                            if (isOnLiveBroadcast()) {
+                                createBetterNowToolbar();
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    toolbarObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+// Initialize toolbar - all scripts are loaded at this point
+initBetterNowToolbar();
