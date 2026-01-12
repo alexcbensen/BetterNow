@@ -5,6 +5,82 @@
 // Debug logging - set to false for production
 const CHEST_DEBUG = false;
 
+// ============ Notice Bar ============
+// Displays chest progress to all BetterNow users watching the stream
+
+function createNoticeBar() {
+    if (document.getElementById('betternow-notice-bar')) return;
+
+    const betternowToolbar = document.getElementById('betternow-toolbar');
+    if (!betternowToolbar) return;
+
+    const noticeBar = document.createElement('div');
+    noticeBar.id = 'betternow-notice-bar';
+    noticeBar.style.cssText = `
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 12px;
+        background: var(--background-color, #212121);
+        border-bottom: 1px solid var(--main-border-color, #4e4e4e);
+        font-size: 0.85rem;
+        color: var(--color-text, #fff);
+        font-family: inherit;
+        gap: 8px;
+    `;
+
+    // Insert after BetterNow toolbar, before YouNow toolbar
+    const youNowToolbar = document.querySelector('app-top-toolbar');
+    if (youNowToolbar) {
+        youNowToolbar.parentNode.insertBefore(noticeBar, youNowToolbar);
+    }
+
+    return noticeBar;
+}
+
+function updateNoticeBar() {
+    let noticeBar = document.getElementById('betternow-notice-bar');
+
+    // Only show if auto-chest is enabled and we have a threshold
+    if (!autoChestEnabled || !autoChestThreshold || autoChestThreshold <= 0) {
+        if (noticeBar) noticeBar.style.display = 'none';
+        return;
+    }
+
+    // Create bar if it doesn't exist
+    if (!noticeBar) {
+        noticeBar = createNoticeBar();
+        if (!noticeBar) return;
+    }
+
+    const currentLikes = getCurrentLikes();
+    const likesInChest = Math.max(0, currentLikes - lastChestOpenLikes);
+    const threshold = autoChestThreshold;
+
+    noticeBar.innerHTML = `
+        <span>Chest auto-drop enabled:</span>
+        <span style="font-weight: 600;">
+            ${likesInChest.toLocaleString()} / ${threshold.toLocaleString()} likes
+        </span>
+    `;
+
+    noticeBar.style.display = 'flex';
+}
+
+function hideNoticeBar() {
+    const noticeBar = document.getElementById('betternow-notice-bar');
+    if (noticeBar) {
+        noticeBar.style.display = 'none';
+    }
+}
+
+function removeNoticeBar() {
+    const noticeBar = document.getElementById('betternow-notice-bar');
+    if (noticeBar) {
+        noticeBar.remove();
+    }
+}
+
 function chestLog(...args) {
     if (CHEST_DEBUG) {
         console.log('[BetterNow Chest]', new Date().toISOString().substr(11, 12), ...args);
@@ -28,8 +104,8 @@ let chestOpenCount = 0; // Track how many chests opened this session
 let lastChestOpenTime = null; // Track when last chest was opened
 let chestDropCooldownUntil = 0; // Timestamp when we can check again after a chest drop
 
-// Chest drop animation takes ~22-25 seconds, so we wait before checking again
-const CHEST_DROP_COOLDOWN_MS = 22000;
+// Chest drop animation takes ~25-30 seconds, so we wait before checking again
+const CHEST_DROP_COOLDOWN_MS = 30000;
 
 // ============ Audience-Based Like Tracking ============
 
@@ -256,6 +332,7 @@ function createChestControls() {
             toggleBtn.style.background = 'var(--color-mediumgray, #888)';
             thresholdControls.style.display = 'none';
             stopChestMonitoring();
+            hideNoticeBar();
         }
 
         saveChestSettingsLocal();
@@ -334,6 +411,7 @@ function createChestControls() {
             autoChestThreshold = value;
             chestLog('Threshold updated to:', autoChestThreshold);
             saveChestSettingsLocal();
+            updateNoticeBar();
 
             // Reformat with commas
             thresholdInput.value = value.toLocaleString();
@@ -374,6 +452,7 @@ function removeChestControls() {
         chestLog('Removing chest controls');
         controls.remove();
     }
+    removeNoticeBar();
 }
 
 function isChestDropping() {
@@ -586,6 +665,9 @@ async function openChest(currentLikes) {
 
     chestLog(`openChest: Chest opened! Dropped ${likesDropped.toLocaleString()} likes. lastChestOpenLikes: ${previousLastChestLikes.toLocaleString()} → ${lastChestOpenLikes.toLocaleString()}, session total: ${chestOpenCount}`);
 
+    // Update notice bar to show reset progress
+    updateNoticeBar();
+
     // Wait a bit for the chest animation/modal transition
     await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -638,6 +720,7 @@ function startChestMonitoring() {
             if (currentLikes !== lastKnownAudienceLikes) {
                 chestLog(`Audience likes changed: ${lastKnownAudienceLikes?.toLocaleString()} → ${currentLikes.toLocaleString()}`);
                 lastKnownAudienceLikes = currentLikes;
+                updateNoticeBar();
                 checkChestThreshold();
             }
         });
@@ -671,6 +754,7 @@ function startChestMonitoring() {
     }
 
     // Run an initial check
+    updateNoticeBar();
     checkChestThreshold();
 }
 
@@ -685,6 +769,7 @@ function stopChestMonitoring() {
         chestObserver.disconnect();
         chestObserver = null;
     }
+    hideNoticeBar();
 }
 
 function checkBroadcastStatus() {
