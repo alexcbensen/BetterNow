@@ -128,28 +128,26 @@ function addUserBadgeToProfileModal() {
             }
         }
 
-        // Add LIT badge if we have a badge list
+        // Add LIT badge if we have a badge list AND a badge URL is configured
         if (badgeList && !badgeList.querySelector('.betternow-user-badge')) {
-            const badgeLi = document.createElement('li');
-            badgeLi.className = 'ng-star-inserted';
-            badgeLi.style.cssText = 'display: inline-flex; align-items: center;';
-            const badge = document.createElement('img');
+            const badgeUrl = (typeof betternowUserStyle !== 'undefined' && betternowUserStyle.badgeUrl)
+                ? betternowUserStyle.badgeUrl
+                : '';
 
-            // Use custom badge URL from settings, or default to local asset
-            if (typeof betternowUserStyle !== 'undefined' && betternowUserStyle.badgeUrl) {
-                badge.src = betternowUserStyle.badgeUrl;
-            } else if (typeof BETTERNOW_USER_BADGE_URL !== 'undefined') {
-                badge.src = BETTERNOW_USER_BADGE_URL;
-            } else {
-                badge.src = chrome.runtime.getURL('assets/badges/verified.svg');
+            // Only add badge if URL is configured
+            if (badgeUrl) {
+                const badgeLi = document.createElement('li');
+                badgeLi.className = 'ng-star-inserted';
+                badgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+                const badge = document.createElement('img');
+                badge.src = badgeUrl;
+                badge.className = 'betternow-user-badge special-badges';
+                badge.alt = 'BetterNow User';
+                badge.title = 'BetterNow User';
+                badge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+                badgeLi.appendChild(badge);
+                badgeList.appendChild(badgeLi);
             }
-
-            badge.className = 'betternow-user-badge special-badges';
-            badge.alt = 'BetterNow User';
-            badge.title = 'BetterNow User';
-            badge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
-            badgeLi.appendChild(badge);
-            badgeList.appendChild(badgeLi);
         }
 
         // Add "BetterNow User" text below name/level

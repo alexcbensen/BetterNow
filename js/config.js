@@ -41,13 +41,14 @@ let friendSettings = {};
 let mySettings = {};
 
 // BetterNow User badge/text styling (admin customizable)
-// Format: { badgeUrl: "https://...", textColor: "#e0c2f3", glowColor: "#820ad0", glowIntensity: 6, glowOpacity: 100 }
+// Format: { badgeUrl: "https://...", textColor: "#e0c2f3", glowColor: "#820ad0", glowIntensity: 6, glowOpacity: 100, onlineColor: "#820ad0" }
 let betternowUserStyle = {
-    badgeUrl: '',  // Empty = use default local asset
+    badgeUrl: '',  // Empty = no badge shown
     textColor: '#e0c2f3',
     glowColor: '#820ad0',
     glowIntensity: 6,  // Glow blur radius in pixels (0-10)
-    glowOpacity: 100   // Glow opacity percentage (0-100)
+    glowOpacity: 100,  // Glow opacity percentage (0-100)
+    onlineColor: '#820ad0'  // Online indicator dot color for BetterNow users
 };
 
 // Granted features - which features each user has access to (keyed by odiskd)

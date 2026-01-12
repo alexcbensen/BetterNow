@@ -27,5 +27,4 @@ if (localStorage.getItem('betternow_chatFilterBypass') === 'true' && !isUserBloc
     };
     // Inject immediately into the page
     (document.head || document.documentElement).appendChild(script);
-    console.log('[BetterNow] Filter bypass injected at document_start');
 }

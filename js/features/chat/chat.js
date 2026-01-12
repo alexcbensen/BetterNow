@@ -1,8 +1,6 @@
 // ============ Chat Styling ============
 // Friend borders, dev badges, BetterNow user badges, light mode fixes, username coloring
 
-const BETTERNOW_USER_BADGE_URL = chrome.runtime.getURL('assets/badges/verified.svg');
-
 function isLightMode() {
     // Check for data-theme="light" attribute on any element (usually html or body)
     return document.querySelector('[data-theme="light"]') !== null;
@@ -161,6 +159,15 @@ function applyBetterNowUserBadges() {
         // Skip if user is not online with BetterNow
         if (!isOnlineWithBetterNow(userId)) return;
 
+        // Mark this user as a BetterNow user (for CSS styling like online indicator)
+        li.setAttribute('data-betternow-user', 'true');
+
+        // Also mark the user-thumb for audience list styling
+        const userThumb = li.querySelector('.user-thumb');
+        if (userThumb) {
+            userThumb.setAttribute('data-betternow-user', 'true');
+        }
+
         // Skip admin/developer accounts (they get developer badge instead)
         if (typeof ADMIN_USER_IDS !== 'undefined' && ADMIN_USER_IDS.includes(userId)) {
             return;
@@ -200,24 +207,24 @@ function applyBetterNowUserBadges() {
         }
 
         if (badgeList && !badgeList.querySelector('.betternow-user-badge')) {
-            const badgeLi = document.createElement('li');
-            badgeLi.className = 'ng-star-inserted';
-            badgeLi.style.cssText = 'display: inline-flex; align-items: center;';
-            const badge = document.createElement('img');
+            const badgeUrl = (typeof betternowUserStyle !== 'undefined' && betternowUserStyle.badgeUrl)
+                ? betternowUserStyle.badgeUrl
+                : '';
 
-            // Use custom badge URL from settings, or default to local asset
-            if (typeof betternowUserStyle !== 'undefined' && betternowUserStyle.badgeUrl) {
-                badge.src = betternowUserStyle.badgeUrl;
-            } else {
-                badge.src = BETTERNOW_USER_BADGE_URL;
+            // Only add badge if URL is configured
+            if (badgeUrl) {
+                const badgeLi = document.createElement('li');
+                badgeLi.className = 'ng-star-inserted';
+                badgeLi.style.cssText = 'display: inline-flex; align-items: center;';
+                const badge = document.createElement('img');
+                badge.src = badgeUrl;
+                badge.className = 'betternow-user-badge special-badges';
+                badge.alt = 'BetterNow User';
+                badge.title = 'BetterNow User';
+                badge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
+                badgeLi.appendChild(badge);
+                badgeList.appendChild(badgeLi);
             }
-
-            badge.className = 'betternow-user-badge special-badges';
-            badge.alt = 'BetterNow User';
-            badge.title = 'BetterNow User';
-            badge.style.cssText = 'width: 16px; height: 16px; margin-right: 4px;';
-            badgeLi.appendChild(badge);
-            badgeList.appendChild(badgeLi);
         }
     });
 }
@@ -340,6 +347,9 @@ function applyChatStyles() {
 
     // Apply BetterNow user badges
     applyBetterNowUserBadges();
+
+    // Mark BetterNow users in audience list (for online indicator styling)
+    markBetterNowUsersInAudience();
 }
 
 // Throttle applyChatStyles to prevent excessive calls
@@ -365,3 +375,101 @@ function observeChat() {
         chatContainer.setAttribute('data-observing', 'true');
     }
 }
+
+// ============ Online Indicator Styling ============
+// Inject CSS to style the online indicator dot for BetterNow users
+
+function updateBetterNowOnlineIndicatorStyle() {
+    const color = (typeof betternowUserStyle !== 'undefined' && betternowUserStyle.onlineColor)
+        ? betternowUserStyle.onlineColor
+        : '#820ad0';
+
+    let style = document.getElementById('betternow-online-indicator-style');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'betternow-online-indicator-style';
+        document.head.appendChild(style);
+    }
+
+    style.textContent = `
+        .viewer-wrapper[data-betternow-user="true"] .online-badge .circle,
+        .user-thumb[data-betternow-user="true"] .online-badge .circle,
+        li[data-betternow-user="true"] .online-badge .circle {
+            fill: ${color} !important;
+        }
+    `;
+}
+
+// Mark BetterNow users in audience list (for online indicator styling)
+function markBetterNowUsersInAudience() {
+    document.querySelectorAll('app-audience .viewer-wrapper').forEach(wrapper => {
+        // Get userId from avatar URL
+        const avatar = wrapper.querySelector('img.avatar');
+        if (!avatar || !avatar.src) return;
+
+        const match = avatar.src.match(/\/(\d+)\/\d+\.jpg/);
+        if (!match) return;
+
+        const userId = match[1];
+
+        // Check if user is online with BetterNow
+        if (isOnlineWithBetterNow(userId)) {
+            wrapper.setAttribute('data-betternow-user', 'true');
+
+            // Also mark the user-thumb
+            const userThumb = wrapper.querySelector('.user-thumb');
+            if (userThumb) {
+                userThumb.setAttribute('data-betternow-user', 'true');
+            }
+        }
+    });
+}
+
+// Initialize online indicator style when settings load
+function initOnlineIndicatorStyle() {
+    // Always update the style - use default color if not set
+    updateBetterNowOnlineIndicatorStyle();
+}
+
+// Debug function - call from console: debugOnlineIndicator()
+window.debugOnlineIndicator = function() {
+    const onlineUsers = window.onlineBetterNowUserIds || new Set();
+    console.log('[BetterNow Debug] Online BetterNow users:', [...onlineUsers]);
+    console.log('[BetterNow Debug] betternowUserStyle:', typeof betternowUserStyle !== 'undefined' ? betternowUserStyle : 'not defined');
+
+    const style = document.getElementById('betternow-online-indicator-style');
+    console.log('[BetterNow Debug] CSS injected:', style ? style.textContent : 'NOT FOUND');
+
+    const markedElements = document.querySelectorAll('[data-betternow-user="true"]');
+    console.log('[BetterNow Debug] Elements marked with data-betternow-user:', markedElements.length);
+    markedElements.forEach(el => console.log('  -', el.className || el.tagName));
+
+    const audienceViewers = document.querySelectorAll('app-audience .viewer-wrapper');
+    console.log('[BetterNow Debug] Audience viewers found:', audienceViewers.length);
+    audienceViewers.forEach(v => {
+        const avatar = v.querySelector('img.avatar');
+        const match = avatar?.src?.match(/\/(\d+)\/\d+\.jpg/);
+        const userId = match ? match[1] : 'no-match';
+        const isOnline = isOnlineWithBetterNow(userId);
+        const isMarked = v.getAttribute('data-betternow-user');
+        console.log(`  - userId: ${userId}, isOnlineWithBetterNow: ${isOnline}, marked: ${isMarked}`);
+    });
+};
+
+// Observe audience list for changes
+function observeAudience() {
+    const audienceContainer = document.querySelector('app-audience');
+    if (audienceContainer && !audienceContainer.hasAttribute('data-betternow-observing')) {
+        const audienceObserver = new MutationObserver(() => {
+            markBetterNowUsersInAudience();
+        });
+        audienceObserver.observe(audienceContainer, { childList: true, subtree: true });
+        audienceContainer.setAttribute('data-betternow-observing', 'true');
+
+        // Initial mark
+        markBetterNowUsersInAudience();
+    }
+}
+
+// Call on load (will be called again after Firebase loads)
+initOnlineIndicatorStyle();

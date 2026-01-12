@@ -535,18 +535,21 @@ function openAdminPanel() {
         const glowColorInput = document.getElementById('betternow-glow-color');
         const glowIntensityInput = document.getElementById('betternow-glow-intensity');
         const glowOpacityInput = document.getElementById('betternow-glow-opacity');
+        const onlineColorInput = document.getElementById('betternow-online-color');
         const intensityValueSpan = document.getElementById('betternow-intensity-value');
         const opacityValueSpan = document.getElementById('betternow-opacity-value');
         const badgePreviewImg = document.getElementById('betternow-badge-preview-img');
         const previewBadgeIcon = document.getElementById('betternow-preview-badge-icon');
         const textPreview = document.getElementById('betternow-text-preview');
         const glowPreview = document.getElementById('betternow-glow-preview');
+        const onlinePreview = document.getElementById('betternow-online-preview');
         const livePreview = document.getElementById('betternow-live-preview');
 
         // Set initial values - ensure sliders are set correctly
         badgeUrlInput.value = betternowUserStyle.badgeUrl || '';
         textColorInput.value = betternowUserStyle.textColor || '#e0c2f3';
         glowColorInput.value = betternowUserStyle.glowColor || '#820ad0';
+        onlineColorInput.value = betternowUserStyle.onlineColor || '#820ad0';
 
         // Set slider values with proper defaults
         const savedIntensity = (typeof betternowUserStyle.glowIntensity === 'number') ? betternowUserStyle.glowIntensity : 6;
@@ -585,27 +588,25 @@ function openAdminPanel() {
 
         // Update badge in both preview locations
         const updateBadgePreview = (url) => {
-            const defaultUrl = chrome.runtime.getURL('assets/badges/verified.svg');
-            const badgeSrc = url || defaultUrl;
-            badgePreviewImg.src = badgeSrc;
-            if (previewBadgeIcon) previewBadgeIcon.src = badgeSrc;
+            badgePreviewImg.src = url || '';
+            if (previewBadgeIcon) previewBadgeIcon.src = url || '';
         };
 
         // Badge preview - set initial
-        if (betternowUserStyle.badgeUrl) {
-            updateBadgePreview(betternowUserStyle.badgeUrl);
-        } else {
-            updateBadgePreview('');
-        }
+        updateBadgePreview(betternowUserStyle.badgeUrl || '');
 
         // Color previews
         const initTextColor = normalizeHex(textColorInput.value);
         const initGlowColor = normalizeHex(glowColorInput.value);
+        const initOnlineColor = normalizeHex(onlineColorInput.value);
         if (/^#[0-9A-Fa-f]{6}$/.test(initTextColor)) {
             textPreview.style.background = initTextColor;
         }
         if (/^#[0-9A-Fa-f]{6}$/.test(initGlowColor)) {
             glowPreview.style.background = initGlowColor;
+        }
+        if (/^#[0-9A-Fa-f]{6}$/.test(initOnlineColor)) {
+            onlinePreview.style.background = initOnlineColor;
         }
         updateLivePreview();
 
@@ -646,6 +647,14 @@ function openAdminPanel() {
             updateLivePreview();
         });
 
+        // Online color input handler
+        onlineColorInput.addEventListener('input', () => {
+            const val = normalizeHex(onlineColorInput.value);
+            if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                onlinePreview.style.background = val;
+            }
+        });
+
         // Save button handler
         document.getElementById('save-betternow-style').addEventListener('click', async () => {
             const btn = document.getElementById('save-betternow-style');
@@ -655,10 +664,14 @@ function openAdminPanel() {
                 textColor: normalizeHex(textColorInput.value.trim()) || '#e0c2f3',
                 glowColor: normalizeHex(glowColorInput.value.trim()) || '#820ad0',
                 glowIntensity: parseInt(glowIntensityInput.value),
-                glowOpacity: parseInt(glowOpacityInput.value)
+                glowOpacity: parseInt(glowOpacityInput.value),
+                onlineColor: normalizeHex(onlineColorInput.value.trim()) || '#820ad0'
             };
 
             await saveSettingsToFirebase();
+
+            // Update online indicator CSS
+            updateBetterNowOnlineIndicatorStyle();
 
             // Visual feedback
             btn.textContent = 'Saved!';

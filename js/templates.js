@@ -350,6 +350,27 @@ const templates = {
                                     " />
                                     <span id="betternow-opacity-value" style="color: #ccc; font-size: 12px; width: 35px;">100%</span>
                                 </div>
+                                <!-- Online indicator color -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label style="color: #ccc; font-size: 13px; width: 70px;">Online:</label>
+                                    <input type="text" id="betternow-online-color" placeholder="#hex" style="
+                                        width: 70px;
+                                        background: #2a2a2a;
+                                        border: 1px solid #444;
+                                        border-radius: 4px;
+                                        padding: 4px 8px;
+                                        color: white;
+                                        font-size: 12px;
+                                    " />
+                                    <div id="betternow-online-preview" style="
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 50%;
+                                        background: #08d687;
+                                        border: 1px solid #555;
+                                    "></div>
+                                    <span style="color: #666; font-size: 11px;">Chat online dot</span>
+                                </div>
                                 <!-- Live preview card -->
                                 <div style="margin-top: 8px; padding: 12px; background: #212121; border-radius: 8px; border: 1px solid #444;">
                                     <p style="color: #888; font-size: 11px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">Preview</p>

@@ -134,6 +134,11 @@ function applyFirebaseSettings() {
 
     // Re-apply chat styles with new settings
     applyChatStyles();
+
+    // Update online indicator style with new settings
+    if (typeof initOnlineIndicatorStyle === 'function') {
+        initOnlineIndicatorStyle();
+    }
 }
 
 // Load settings on startup
@@ -422,7 +427,8 @@ async function saveSettingsToFirebase() {
                                     textColor: { stringValue: betternowUserStyle.textColor || '#e0c2f3' },
                                     glowColor: { stringValue: betternowUserStyle.glowColor || '#820ad0' },
                                     glowIntensity: { integerValue: betternowUserStyle.glowIntensity || 6 },
-                                    glowOpacity: { integerValue: betternowUserStyle.glowOpacity || 100 }
+                                    glowOpacity: { integerValue: betternowUserStyle.glowOpacity || 100 },
+                                    onlineColor: { stringValue: betternowUserStyle.onlineColor || '#820ad0' }
                                 }
                             }
                         },

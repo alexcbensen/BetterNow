@@ -191,6 +191,9 @@ function initializeExtension() {
     const chatContainerObserver = new MutationObserver(() => {
         if (extensionDisabled) return;
         observeChat();
+        if (typeof observeAudience === 'function') {
+            observeAudience();
+        }
     });
     chatContainerObserver.observe(document.body, { childList: true, subtree: true });
 
