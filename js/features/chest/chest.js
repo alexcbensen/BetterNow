@@ -466,10 +466,17 @@ async function openChest(currentLikes) {
     const startTime = Date.now();
     chestLog('openChest: Starting chest open sequence');
 
-    // Click the chest button
-    const chestButton = document.querySelector('.chest-button');
+    // Wait for chest button with retry loop (DOM may be mid-update)
+    chestLog('openChest: Waiting for chest button...');
+    let chestButton = null;
+    for (let i = 0; i < 20; i++) {
+        chestButton = document.querySelector('.chest-button');
+        if (chestButton) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     if (!chestButton) {
-        chestError('openChest: Chest button not found!');
+        chestError('openChest: Chest button not found after 2s!');
         isOpeningChest = false;
         return;
     }
