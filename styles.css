@@ -18,12 +18,11 @@ app-channel .header {
 }
 
 /* Grid view styles - only on broadcast pages */
-/* NOTE: Using 'betternow-grid-active' to avoid conflict with YouNow's 'grid-view-enabled' */
-.betternow-grid-active app-channel .video-player {
+.grid-view-enabled app-channel .video-player {
     height: auto !important;
 }
 
-.betternow-grid-active app-channel .fullscreen-wrapper {
+.grid-view-enabled app-channel .fullscreen-wrapper {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 4px !important;
@@ -33,15 +32,15 @@ app-channel .header {
 }
 
 /* Fullscreen grid view - center content vertically */
-.betternow-grid-active app-channel .fullscreen-wrapper:fullscreen,
-.betternow-grid-active app-channel .fullscreen-wrapper:-webkit-full-screen {
+.grid-view-enabled app-channel .fullscreen-wrapper:fullscreen,
+.grid-view-enabled app-channel .fullscreen-wrapper:-webkit-full-screen {
     height: 100vh !important;
     align-content: center !important;
     justify-content: center !important;
 }
 
 /* All videos: 2 columns, auto rows */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video {
     position: relative !important;
     flex: 0 0 calc(50% - 2px) !important;
     max-width: calc(50% - 2px) !important;
@@ -53,29 +52,142 @@ app-channel .header {
 }
 
 /* 1 video: full width */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:only-child {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:only-child {
     flex: 0 0 100% !important;
     max-width: 100% !important;
 }
 
-.betternow-grid-active app-channel .fullscreen-wrapper > .video .video-wrapper,
-.betternow-grid-active app-channel .fullscreen-wrapper > .video app-video {
+/* Hide "Recommended for you" section on profile pages */
+app-profile-mayalsolike {
+    display: none !important;
+}
+
+/* Hide empty placeholder slots when exactly 2 streams active - applied via JS class */
+.grid-view-enabled.grid-hide-empty app-channel .fullscreen-wrapper > .video.video--placeholder {
+    display: none !important;
+}
+
+/* ============ 2-Person Layout: Sidebar + Video side by side ============ */
+
+/* When exactly 2 streams: stack vertically with controlled width */
+.grid-view-enabled.grid-hide-empty app-channel .fullscreen-wrapper > .video:not(.video--placeholder) {
+    flex: 0 0 auto !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: calc(50vh - 60px) !important;
+    aspect-ratio: unset !important;
+    margin: 0 !important;
+}
+
+/* Main container stays normal block flow */
+.grid-view-enabled.grid-hide-empty app-channel .main {
+    display: block !important;
+    position: relative !important;
+}
+
+/* Header stays full width */
+.grid-view-enabled.grid-hide-empty app-channel .main > .header {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+/* Toolbars span full width - NO margin */
+.grid-view-enabled.grid-hide-empty app-channel .main > #betternow-toolbar,
+.grid-view-enabled.grid-hide-empty app-channel .main > app-top-toolbar {
+    margin-left: 0 !important;
+}
+
+/* Video player gets left padding for sidebar space */
+.grid-view-enabled.grid-hide-empty app-channel app-video-player {
+    padding-left: 340px !important;
+    box-sizing: border-box !important;
+}
+
+/* Footer (action bar) gets left padding */
+.grid-view-enabled.grid-hide-empty app-channel .main > .footer {
+    padding-left: 340px !important;
+    box-sizing: border-box !important;
+}
+
+/* Channel profile section gets left padding */
+.grid-view-enabled.grid-hide-empty app-channel .channel-profile {
+    padding-left: 340px !important;
+    box-sizing: border-box !important;
+}
+
+/* Video player inner uses full width */
+.grid-view-enabled.grid-hide-empty app-channel .video-player {
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+.grid-view-enabled.grid-hide-empty app-channel app-stream-actions {
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+.grid-view-enabled.grid-hide-empty app-channel app-stream-actions .wrapper {
+    width: 100% !important;
+    justify-content: flex-start !important;
+}
+
+.grid-view-enabled.grid-hide-empty app-channel app-stream-actions .wrapper .list {
+    width: 100% !important;
+    justify-content: flex-start !important;
+}
+
+/* Hide "Recommended for you" section */
+.grid-view-enabled.grid-hide-empty app-channel app-profile-mayalsolike {
+    display: none !important;
+}
+
+/* Hide the ORIGINAL .left element - JS will move it */
+.grid-view-enabled.grid-hide-empty app-channel .columns > .left {
+    display: none !important;
+}
+
+/* Fixed sidebar container - created by JS, appended to body */
+#betternow-fixed-sidebar {
+    position: fixed !important;
+    left: 55px !important;
+    top: 130px !important;
+    width: 320px !important;
+    max-height: calc(100vh - 150px) !important;
+    overflow-y: auto !important;
+    z-index: 100 !important;
+    background: var(--background-color, #121212) !important;
+    padding: 10px !important;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+}
+
+#betternow-fixed-sidebar::-webkit-scrollbar {
+    display: none !important;
+}
+
+/* Posts section - takes full width */
+.grid-view-enabled.grid-hide-empty app-channel .columns > .right {
+    width: 100% !important;
+}
+
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .video-wrapper,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video app-video {
     width: 100% !important;
     height: 100% !important;
 }
 
 /* Force cover for regular videos in grid view */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video video:not(.is-screenshare) {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video video:not(.is-screenshare) {
     object-fit: cover !important;
 }
 
 /* Screenshare videos use contain to show full content */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video video.is-screenshare {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video video.is-screenshare {
     object-fit: contain !important;
 }
 
 /* Main video wrapper - full size by default in grid */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video .main-video-wrapper {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .main-video-wrapper {
     width: 100% !important;
     height: 100% !important;
 }
@@ -83,10 +195,10 @@ app-channel .header {
 /* When screenshare is active: position camera feed as small PiP overlay */
 /* Target main-video-wrapper with is-headshot (camera off) inside screenshare tiles */
 /* Use high specificity to override all states */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot,
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-small,
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot,
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot.is-small {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-small,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot.is-small {
     position: absolute !important;
     bottom: -10px !important;
     right: 5px !important;
@@ -103,16 +215,16 @@ app-channel .header {
 /* Force all audio-animation-wrappers to consistent size in grid view */
 /* The is-small class actually makes them LARGER (47.5px), while selected (no is-small) is smaller (40px) */
 /* We want all to match the is-small size */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video .audio-animation-wrapper:not(.is-small):not(.is-mini) {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .audio-animation-wrapper:not(.is-small):not(.is-mini) {
     width: var(--stream-user-thumb-medium) !important;
     height: auto !important;
     aspect-ratio: 1 !important;
 }
 
 /* Force screenshare PiP avatar to consistent size regardless of is-small/is-mini */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper,
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-small,
-.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-mini {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-small,
+.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-mini {
     width: 40px !important;
     height: 40px !important;
     min-height: 40px !important;
@@ -121,7 +233,7 @@ app-channel .header {
 }
 
 /* Ensure toolbar stays above PiP webcam in grid view */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video .toolbar--overlay {
+.grid-view-enabled app-channel .fullscreen-wrapper > .video .toolbar--overlay {
     z-index: 10 !important;
 }
 
