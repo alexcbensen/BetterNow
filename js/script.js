@@ -6,9 +6,6 @@
  * This code may not be copied, modified, or distributed without permission.
  */
 
-// BUILD: 2026-01-13-ALPHA
-console.log('%c[BetterNow] Script.js BUILD 2026-01-13-ALPHA loaded!', 'background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
-
 // Main entry point - initializes all features
 
 // ============ Blocked User Check ============
