@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Alex's BetterNow",
-  "version": "2.4.19",
+  "version": "2.4.20",
   "icons": {
     "16": "icons/favicon-1.png",
     "48": "icons/favicon-2.png",
@@ -19,6 +19,8 @@
       "matches": ["https://www.younow.com/*", "https://younow.com/*"],
       "css": ["styles.css"],
       "js": [
+        "js/lib/firebase-app.js",
+        "js/lib/firebase-firestore.js",
         "js/config.js",
         "js/helpers.js",
         "js/templates.js",
@@ -41,7 +43,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "assets/golden-border-2.svg",
         "js/features/filter-bypass/filter-bypass.js",
         "js/features/navigation/navigation-interceptor.js",
         "js/features/explore/ws-blocker.js",
