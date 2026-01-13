@@ -64,11 +64,6 @@ function getGuestUsername(tile) {
 
 // Create global volume slider for all guests
 function createGlobalVolumeSlider() {
-    // Only create on live broadcasts
-    if (typeof isOnLiveBroadcast === 'function' && !isOnLiveBroadcast()) {
-        return;
-    }
-
     // Ensure BetterNow toolbar exists
     const betterNowToolbar = createBetterNowToolbar();
     if (!betterNowToolbar) return;
@@ -855,7 +850,9 @@ function handleNavigation() {
         if (isLiveStream()) {
             volumeLog('Live stream detected, reinitializing volume controls');
 
-            volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+            if (volumeControlsObserver) {
+                volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+            }
             initVolumeControls();
         } else {
             // Not immediately a live stream - start observer to watch for it
@@ -870,7 +867,9 @@ function handleNavigation() {
                         liveStreamCheckTimeout = null;
                     }
 
-                    volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+                    if (volumeControlsObserver) {
+                        volumeControlsObserver.observe(document.body, { childList: true, subtree: true });
+                    }
                     initVolumeControls();
                 }
             });
@@ -887,7 +886,9 @@ function handleNavigation() {
                         liveStreamObserver = null;
                     }
 
-                    volumeControlsObserver.disconnect();
+                    if (volumeControlsObserver) {
+                        volumeControlsObserver.disconnect();
+                    }
                 }
                 liveStreamCheckTimeout = null;
             }, LIVE_STREAM_CHECK_TIMEOUT);
