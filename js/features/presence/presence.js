@@ -62,6 +62,10 @@ async function updatePresence() {
         presenceLog('updatePresence: Skipped - no currentUserId');
         return;
     }
+    if (typeof FIRESTORE_BASE_URL === 'undefined' || !FIRESTORE_BASE_URL) {
+        presenceLog('updatePresence: Skipped - FIRESTORE_BASE_URL not defined');
+        return;
+    }
 
     const now = Date.now();
     const streamInfo = getCurrentStreamInfo();
