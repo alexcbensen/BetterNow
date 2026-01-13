@@ -26,6 +26,140 @@ let settingsLoaded = false;
 // Auth state
 let firebaseIdToken = sessionStorage.getItem('firebaseIdToken') || null;
 
+// Firebase SDK state (lazy loaded)
+let firebaseApp = null;
+let firestoreDb = null;
+let firebaseSDKLoaded = false;
+let firebaseSDKLoading = false;
+
+// Active listeners (to clean up on navigation)
+let chestEnabledUnsubscribe = null;
+
+// Load Firebase SDK dynamically
+async function loadFirebaseSDK() {
+    if (firebaseSDKLoaded) return true;
+    if (firebaseSDKLoading) {
+        // Wait for existing load to complete
+        while (firebaseSDKLoading) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+        return firebaseSDKLoaded;
+    }
+
+    firebaseSDKLoading = true;
+
+    try {
+        // Import Firebase modules from CDN
+        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+        const { getFirestore, doc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Initialize Firebase
+        firebaseApp = initializeApp(firebaseConfig);
+        firestoreDb = getFirestore(firebaseApp);
+
+        // Store references globally for use in other modules
+        window._firebaseDoc = doc;
+        window._firebaseOnSnapshot = onSnapshot;
+        window._firestoreDb = firestoreDb;
+
+        firebaseSDKLoaded = true;
+        console.log('[BetterNow] Firebase SDK loaded');
+        return true;
+    } catch (error) {
+        console.error('[BetterNow] Failed to load Firebase SDK:', error);
+        return false;
+    } finally {
+        firebaseSDKLoading = false;
+    }
+}
+
+// Subscribe to chestEnabled document for a broadcaster (viewers only)
+// Returns unsubscribe function
+async function subscribeToChestEnabled(broadcasterId, onUpdate) {
+    if (!broadcasterId) return null;
+
+    // Load SDK if not already loaded
+    const sdkReady = await loadFirebaseSDK();
+    if (!sdkReady) {
+        console.warn('[BetterNow] Cannot subscribe to chestEnabled - SDK not loaded');
+        return null;
+    }
+
+    const doc = window._firebaseDoc;
+    const onSnapshot = window._firebaseOnSnapshot;
+    const db = window._firestoreDb;
+
+    try {
+        const docRef = doc(db, 'chestEnabled', broadcasterId);
+
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                console.log('[BetterNow] chestEnabled update for', broadcasterId, data);
+                onUpdate({
+                    enabled: data.enabled || false,
+                    threshold: data.threshold || 0
+                });
+            } else {
+                // Document doesn't exist - broadcaster hasn't enabled chest
+                onUpdate(null);
+            }
+        }, (error) => {
+            console.error('[BetterNow] chestEnabled listener error:', error);
+            onUpdate(null);
+        });
+
+        return unsubscribe;
+    } catch (error) {
+        console.error('[BetterNow] Failed to subscribe to chestEnabled:', error);
+        return null;
+    }
+}
+
+// Unsubscribe from current chest enabled listener
+function unsubscribeFromChestEnabled() {
+    if (chestEnabledUnsubscribe) {
+        chestEnabledUnsubscribe();
+        chestEnabledUnsubscribe = null;
+        console.log('[BetterNow] Unsubscribed from chestEnabled');
+    }
+}
+
+// Save chest enabled state (broadcaster only) - writes to chestEnabled collection
+async function saveChestEnabledToFirebase(enabled, threshold) {
+    if (!currentUserId) {
+        console.warn('[BetterNow] saveChestEnabledToFirebase: currentUserId not set');
+        return false;
+    }
+
+    try {
+        const response = await fetch(
+            `${FIRESTORE_BASE_URL}/chestEnabled/${currentUserId}`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fields: {
+                        enabled: { booleanValue: enabled },
+                        threshold: { integerValue: threshold }
+                    }
+                })
+            }
+        );
+
+        if (!response.ok) {
+            console.error('[BetterNow] saveChestEnabledToFirebase: HTTP error', response.status);
+            return false;
+        }
+
+        console.log('[BetterNow] saveChestEnabledToFirebase: Saved', { enabled, threshold });
+        return true;
+    } catch (error) {
+        console.error('[BetterNow] saveChestEnabledToFirebase: Error', error);
+        return false;
+    }
+}
+
 async function loadSettingsFromFirebase() {
     try {
         const response = await fetch(`${FIRESTORE_BASE_URL}/config/settings`);
