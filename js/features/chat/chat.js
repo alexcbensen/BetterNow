@@ -342,10 +342,19 @@ function applyChatStyles() {
         });
     });
 
-    // Apply developer badges
+    // Apply developer badges (sync - no presence dependency)
     applyDeveloperBadges();
 
-    // Apply BetterNow user badges
+    // NOTE: BetterNow user badges and audience markers are applied separately
+    // by applyPresenceStyles() after presence data loads - keeps styling instant
+}
+
+// ============ Presence-Dependent Styling ============
+// Called by active-users.js after presence data is fetched
+// Separated from applyChatStyles() so borders/colors load instantly
+
+function applyPresenceStyles() {
+    // Apply BetterNow user badges (requires presence data)
     applyBetterNowUserBadges();
 
     // Mark BetterNow users in audience list (for online indicator styling)
@@ -353,15 +362,20 @@ function applyChatStyles() {
 }
 
 // Throttle applyChatStyles to prevent excessive calls
+// Runs immediately on trigger, then blocks for 250ms
 let chatStylesThrottleTimer = null;
-const CHAT_STYLES_THROTTLE_MS = 250; // Max once per 250ms
+const CHAT_STYLES_THROTTLE_MS = 250;
 
 function throttledApplyChatStyles() {
-    if (chatStylesThrottleTimer) return; // Already scheduled
+    // If throttle active, skip
+    if (chatStylesThrottleTimer) return;
 
+    // Run immediately
+    applyChatStyles();
+
+    // Block subsequent calls for 250ms
     chatStylesThrottleTimer = setTimeout(() => {
         chatStylesThrottleTimer = null;
-        applyChatStyles();
     }, CHAT_STYLES_THROTTLE_MS);
 }
 
