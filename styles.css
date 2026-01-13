@@ -18,11 +18,12 @@ app-channel .header {
 }
 
 /* Grid view styles - only on broadcast pages */
-.grid-view-enabled app-channel .video-player {
+/* NOTE: Using 'betternow-grid-active' to avoid conflict with YouNow's 'grid-view-enabled' */
+.betternow-grid-active app-channel .video-player {
     height: auto !important;
 }
 
-.grid-view-enabled app-channel .fullscreen-wrapper {
+.betternow-grid-active app-channel .fullscreen-wrapper {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 4px !important;
@@ -32,15 +33,15 @@ app-channel .header {
 }
 
 /* Fullscreen grid view - center content vertically */
-.grid-view-enabled app-channel .fullscreen-wrapper:fullscreen,
-.grid-view-enabled app-channel .fullscreen-wrapper:-webkit-full-screen {
+.betternow-grid-active app-channel .fullscreen-wrapper:fullscreen,
+.betternow-grid-active app-channel .fullscreen-wrapper:-webkit-full-screen {
     height: 100vh !important;
     align-content: center !important;
     justify-content: center !important;
 }
 
 /* All videos: 2 columns, auto rows */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video {
     position: relative !important;
     flex: 0 0 calc(50% - 2px) !important;
     max-width: calc(50% - 2px) !important;
@@ -52,29 +53,29 @@ app-channel .header {
 }
 
 /* 1 video: full width */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:only-child {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:only-child {
     flex: 0 0 100% !important;
     max-width: 100% !important;
 }
 
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .video-wrapper,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video app-video {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video .video-wrapper,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video app-video {
     width: 100% !important;
     height: 100% !important;
 }
 
 /* Force cover for regular videos in grid view */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video video:not(.is-screenshare) {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video video:not(.is-screenshare) {
     object-fit: cover !important;
 }
 
 /* Screenshare videos use contain to show full content */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video video.is-screenshare {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video video.is-screenshare {
     object-fit: contain !important;
 }
 
 /* Main video wrapper - full size by default in grid */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .main-video-wrapper {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video .main-video-wrapper {
     width: 100% !important;
     height: 100% !important;
 }
@@ -82,10 +83,10 @@ app-channel .header {
 /* When screenshare is active: position camera feed as small PiP overlay */
 /* Target main-video-wrapper with is-headshot (camera off) inside screenshare tiles */
 /* Use high specificity to override all states */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-small,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot.is-small {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-small,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) > .main-video-wrapper.is-headshot.is-audio-only-headshot.is-small {
     position: absolute !important;
     bottom: -10px !important;
     right: 5px !important;
@@ -102,16 +103,16 @@ app-channel .header {
 /* Force all audio-animation-wrappers to consistent size in grid view */
 /* The is-small class actually makes them LARGER (47.5px), while selected (no is-small) is smaller (40px) */
 /* We want all to match the is-small size */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .audio-animation-wrapper:not(.is-small):not(.is-mini) {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video .audio-animation-wrapper:not(.is-small):not(.is-mini) {
     width: var(--stream-user-thumb-medium) !important;
     height: auto !important;
     aspect-ratio: 1 !important;
 }
 
 /* Force screenshare PiP avatar to consistent size regardless of is-small/is-mini */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-small,
-.grid-view-enabled app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-mini {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-small,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:has(video.is-screenshare) .main-video-wrapper .audio-animation-wrapper.is-mini {
     width: 40px !important;
     height: 40px !important;
     min-height: 40px !important;
@@ -120,7 +121,7 @@ app-channel .header {
 }
 
 /* Ensure toolbar stays above PiP webcam in grid view */
-.grid-view-enabled app-channel .fullscreen-wrapper > .video .toolbar--overlay {
+.betternow-grid-active app-channel .fullscreen-wrapper > .video .toolbar--overlay {
     z-index: 10 !important;
 }
 

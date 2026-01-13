@@ -6,6 +6,9 @@
  * This code may not be copied, modified, or distributed without permission.
  */
 
+// BUILD: 2026-01-13-ALPHA
+console.log('%c[BetterNow] Script.js BUILD 2026-01-13-ALPHA loaded!', 'background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
+
 // Main entry point - initializes all features
 
 // ============ Blocked User Check ============
@@ -142,14 +145,14 @@ const initInterval = setInterval(() => {
 function initializeExtension() {
     if (extensionDisabled) return;
 
-    // NOTE: applyChatStyles is NOT called here because presence won't be ready yet
-    // The active-users.js module will call it after fetching online users
-
+    applyChatStyles();
     hideBroadcasters();
     hideCarouselBroadcasters();
 
-    // REMOVED: Multiple delayed applyChatStyles calls
-    // The chat observer with throttling handles updates now
+    // Apply chat styles after delays to catch late-loading messages
+    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 500);
+    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 1500);
+    setTimeout(() => { if (!extensionDisabled) applyChatStyles(); }, 3000);
 
     // ============ Observers ============
 
@@ -191,9 +194,6 @@ function initializeExtension() {
     const chatContainerObserver = new MutationObserver(() => {
         if (extensionDisabled) return;
         observeChat();
-        if (typeof observeAudience === 'function') {
-            observeAudience();
-        }
     });
     chatContainerObserver.observe(document.body, { childList: true, subtree: true });
 
@@ -204,38 +204,11 @@ function initializeExtension() {
     });
     popoverObserver.observe(document.body, { childList: true, subtree: true });
 
-    // Watch for grid toggle button container and video count changes
-    const gridObserver = new MutationObserver((mutations) => {
-        if (extensionDisabled) return;
-        // Check if toolbar or video tiles changed
-        const shouldUpdate = mutations.some(mutation => {
-            if (mutation.type === 'childList') {
-                const target = mutation.target;
-                return target.matches?.('.top-button-wrapper, .fullscreen-wrapper') ||
-                    target.closest?.('.top-button-wrapper, .fullscreen-wrapper') ||
-                    Array.from(mutation.addedNodes).some(node =>
-                            node.nodeType === 1 && (
-                                node.matches?.('.top-button-wrapper, .fullscreen-wrapper, .video') ||
-                                node.querySelector?.('.top-button-wrapper, .fullscreen-wrapper, .video')
-                            )
-                    ) ||
-                    Array.from(mutation.removedNodes).some(node =>
-                        node.nodeType === 1 && node.matches?.('.video')
-                    );
-            }
-            return false;
-        });
-
-        if (shouldUpdate) {
-            createGridToggle();
-            applyGridView();
-        }
-    });
-    gridObserver.observe(document.body, { childList: true, subtree: true });
-
-    // Run once on load
-    createGridToggle();
-    applyGridView();
+    // NOTE: Grid view is now handled by the toolbar button toggle only
+    // No observer needed - applyGridView() is called when:
+    // 1. Toolbar is created (initial state)
+    // 2. Grid button is clicked (user toggle)
+    // The CSS handles responsive layout automatically
 
     // Watch for broadcast status changes (END button appearing/disappearing)
     const broadcastObserver = new MutationObserver((mutations) => {

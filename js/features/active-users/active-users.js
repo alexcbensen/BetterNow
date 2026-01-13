@@ -200,8 +200,15 @@ async function setupOnlineUsersSection() {
     try {
         const users = await updateOnlineBetterNowUsers();
         if (countBadge) {
-            countBadge.textContent = users.length;
-            activeUsersLog('setupOnlineUsersSection: Updated count badge to', users.length);
+            // Filter out current user for display count
+            const displayCount = users.filter(u => {
+                if (typeof currentUserId !== 'undefined' && currentUserId) {
+                    return String(u.odiskd) !== String(currentUserId);
+                }
+                return true;
+            }).length;
+            countBadge.textContent = displayCount;
+            activeUsersLog('setupOnlineUsersSection: Updated count badge to', displayCount, '(filtered from', users.length, ')');
         }
     } catch (e) {
         console.error('[BetterNow ActiveUsers] setupOnlineUsersSection: Failed to fetch count:', e);
