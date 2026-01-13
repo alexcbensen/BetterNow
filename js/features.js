@@ -32,22 +32,46 @@ window.BETTERNOW_BUTTON_STYLE = BETTERNOW_BUTTON_STYLE;
 
 function isOnLiveBroadcast() {
     // Fast live broadcast detection for toolbar creation
-    // We don't need to wait for video content - just structural elements
+
+    // If offline element exists, definitely not a live broadcast
+    const isOffline = document.querySelector('app-video-player-broadcaster-offline') !== null;
+    console.log('[BetterNow] isOnLiveBroadcast check: app-video-player-broadcaster-offline =', isOffline);
+    if (isOffline) return false;
 
     // Must have broadcaster-is-online class (indicates live stream)
     const isLive = document.querySelector('.broadcaster-is-online') !== null;
+    console.log('[BetterNow] isOnLiveBroadcast check: .broadcaster-is-online =', isLive);
     if (!isLive) return false;
 
     // Must have app-top-toolbar (where we insert our toolbar)
     const hasToolbar = document.querySelector('app-top-toolbar') !== null;
+    console.log('[BetterNow] isOnLiveBroadcast check: app-top-toolbar =', hasToolbar);
     if (!hasToolbar) return false;
 
     // Must have video-player that is NOT inside a carousel
     const videoPlayer = document.querySelector('.video-player:not(app-broadcasts-carousel .video-player)');
+    console.log('[BetterNow] isOnLiveBroadcast check: video-player =', videoPlayer);
     if (!videoPlayer) return false;
 
+    console.log('[BetterNow] isOnLiveBroadcast: ALL CHECKS PASSED - showing toolbar');
     return true;
 }
+
+// Watch for offline element appearing and remove toolbar
+function setupOfflineWatcher() {
+    const observer = new MutationObserver(() => {
+        const isOffline = document.querySelector('app-video-player-broadcaster-offline') !== null;
+        const toolbar = document.getElementById('betternow-toolbar');
+        if (isOffline && toolbar) {
+            console.log('[BetterNow] Offline element detected - removing toolbar');
+            toolbar.remove();
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// Start watching immediately
+setupOfflineWatcher();
 
 // Stricter check for features that need video content
 function isVideoReady() {
@@ -75,15 +99,29 @@ function createBetterNowToolbar() {
     // Don't create toolbar if extension is disabled for blocked users
     if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return null;
 
-    // Check if toolbar already exists
-    if (document.getElementById('betternow-toolbar')) return document.getElementById('betternow-toolbar');
+    // Check if we're on a live broadcast
+    const onLiveBroadcast = isOnLiveBroadcast();
+
+    // If toolbar already exists
+    const existingToolbar = document.getElementById('betternow-toolbar');
+    if (existingToolbar) {
+        // Remove it if we're no longer on a live broadcast
+        if (!onLiveBroadcast) {
+            console.log('[BetterNow] Removing toolbar - no longer on live broadcast');
+            existingToolbar.remove();
+            return null;
+        }
+        return existingToolbar;
+    }
+
+    // Don't create toolbar if not on a live broadcast
+    if (!onLiveBroadcast) return null;
 
     // Find the YouNow top toolbar to insert above
     const youNowToolbar = document.querySelector('app-top-toolbar');
     if (!youNowToolbar) return null;
 
-    // Don't show toolbar if not on a live broadcast
-    if (!isOnLiveBroadcast()) return null;
+    console.log('[BetterNow] Creating toolbar - on live broadcast');
 
     // Create our toolbar
     const toolbar = document.createElement('div');
@@ -156,25 +194,16 @@ function createBetterNowToolbar() {
     leftSection.appendChild(cssToggle);
 
     // Add Grid View toggle button
-    // Read initial state directly from localStorage (don't rely on global variable)
-    const isGridEnabled = localStorage.getItem('betternow-grid-view') === 'true';
-
     const gridToggle = document.createElement('button');
     gridToggle.id = 'grid-toggle-btn';
     gridToggle.textContent = 'GRID VIEW';
     gridToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
-        background: ${isGridEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        background: ${gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
     `;
     gridToggle.onclick = () => {
-        // Read current state from localStorage, toggle it, write back
-        const currentState = localStorage.getItem('betternow-grid-view') === 'true';
-        const newState = !currentState;
-        localStorage.setItem('betternow-grid-view', newState.toString());
-
-        // Update button appearance
-        gridToggle.style.background = newState ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
-
-        // Apply the change (applyGridView reads from localStorage)
+        gridViewEnabled = !gridViewEnabled;
+        localStorage.setItem('betternow-grid-view', gridViewEnabled.toString());
+        gridToggle.style.background = gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
         applyGridView();
     };
     leftSection.appendChild(gridToggle);
