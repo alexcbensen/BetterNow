@@ -26,74 +26,53 @@ let settingsLoaded = false;
 // Auth state
 let firebaseIdToken = sessionStorage.getItem('firebaseIdToken') || null;
 
-// Firebase SDK state (lazy loaded)
+// Firebase SDK state (loaded via manifest)
 let firebaseApp = null;
 let firestoreDb = null;
 let firebaseSDKLoaded = false;
-let firebaseSDKLoading = false;
 
 // Active listeners (to clean up on navigation)
 let chestEnabledUnsubscribe = null;
 
-// Load Firebase SDK dynamically
-async function loadFirebaseSDK() {
+// Initialize Firebase SDK (bundled files loaded via manifest)
+function initFirebaseSDK() {
     if (firebaseSDKLoaded) return true;
-    if (firebaseSDKLoading) {
-        // Wait for existing load to complete
-        while (firebaseSDKLoading) {
-            await new Promise(r => setTimeout(r, 50));
-        }
-        return firebaseSDKLoaded;
-    }
-
-    firebaseSDKLoading = true;
 
     try {
-        // Import Firebase modules from CDN
-        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
-        const { getFirestore, doc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        // Check if Firebase was loaded via manifest
+        if (typeof firebase === 'undefined' || !firebase.initializeApp) {
+            console.warn('[BetterNow] Firebase SDK not loaded');
+            return false;
+        }
 
         // Initialize Firebase
-        firebaseApp = initializeApp(firebaseConfig);
-        firestoreDb = getFirestore(firebaseApp);
-
-        // Store references globally for use in other modules
-        window._firebaseDoc = doc;
-        window._firebaseOnSnapshot = onSnapshot;
-        window._firestoreDb = firestoreDb;
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        firestoreDb = firebase.firestore();
 
         firebaseSDKLoaded = true;
-        console.log('[BetterNow] Firebase SDK loaded');
         return true;
     } catch (error) {
-        console.error('[BetterNow] Failed to load Firebase SDK:', error);
+        console.error('[BetterNow] Failed to initialize Firebase SDK:', error);
         return false;
-    } finally {
-        firebaseSDKLoading = false;
     }
 }
 
 // Subscribe to chestEnabled document for a broadcaster (viewers only)
 // Returns unsubscribe function
-async function subscribeToChestEnabled(broadcasterId, onUpdate) {
+function subscribeToChestEnabled(broadcasterId, onUpdate) {
     if (!broadcasterId) return null;
 
-    // Load SDK if not already loaded
-    const sdkReady = await loadFirebaseSDK();
-    if (!sdkReady) {
-        console.warn('[BetterNow] Cannot subscribe to chestEnabled - SDK not loaded');
+    // Initialize SDK if not already done
+    if (!initFirebaseSDK()) {
+        console.warn('[BetterNow] Cannot subscribe to chestEnabled - SDK not initialized');
         return null;
     }
 
-    const doc = window._firebaseDoc;
-    const onSnapshot = window._firebaseOnSnapshot;
-    const db = window._firestoreDb;
-
     try {
-        const docRef = doc(db, 'chestEnabled', broadcasterId);
+        const docRef = firestoreDb.collection('chestEnabled').doc(broadcasterId);
 
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
+        const unsubscribe = docRef.onSnapshot((docSnap) => {
+            if (docSnap.exists) {
                 const data = docSnap.data();
                 console.log('[BetterNow] chestEnabled update for', broadcasterId, data);
                 onUpdate({
@@ -172,7 +151,6 @@ async function loadSettingsFromFirebase() {
         const data = await response.json();
         firebaseSettings = parseFirestoreDocument(data.fields);
         settingsLoaded = true;
-        console.log('[BetterNow] Firebase settings loaded at', Date.now());
 
         // Update the global config variables
         applyFirebaseSettings();
