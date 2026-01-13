@@ -785,6 +785,10 @@ const CHEST_DROP_DURATION_MS = 30000; // Animation is ~30 seconds
 
 // Save broadcaster's chest settings to Firebase
 // Saves: enabled, threshold, lastChestOpenLikes, chestDropStartTime, likesBeingDropped
+// Track last saved enabled state to only update chestEnabled when it changes
+let lastSavedChestEnabled = null;
+let lastSavedChestThreshold = null;
+
 async function saveChestSettingsToFirebase() {
     if (!isBroadcasting()) return; // Only broadcasters save
 
@@ -810,6 +814,7 @@ async function saveChestSettingsToFirebase() {
     chestLog('saveChestSettingsToFirebase: Saving for user', currentUserId, settings);
 
     try {
+        // Save to chestSettings (frequently updated - likes, timestamps)
         const response = await fetch(
             `${FIRESTORE_BASE_URL}/chestSettings/${currentUserId}`,
             {
@@ -834,10 +839,25 @@ async function saveChestSettingsToFirebase() {
         } else {
             chestLog('saveChestSettingsToFirebase: Saved successfully');
         }
+
+        // Also save to chestEnabled IF enabled or threshold changed
+        // This is the document viewers subscribe to via realtime listener
+        if (lastSavedChestEnabled !== autoChestEnabled || lastSavedChestThreshold !== autoChestThreshold) {
+            chestLog('saveChestSettingsToFirebase: Enabled/threshold changed, updating chestEnabled collection');
+            if (typeof saveChestEnabledToFirebase === 'function') {
+                await saveChestEnabledToFirebase(autoChestEnabled, autoChestThreshold || 0);
+            }
+            lastSavedChestEnabled = autoChestEnabled;
+            lastSavedChestThreshold = autoChestThreshold;
+        }
     } catch (e) {
         chestError('saveChestSettingsToFirebase: Error:', e);
     }
 }
+
+// Session cache for broadcasters with no chest settings (avoids repeated 404s)
+// Cleared on page refresh, so we'll re-check each session
+const broadcastersWithNoSettings = new Set();
 
 // Load broadcaster's chest settings from Firebase (called by viewers once on page load)
 async function loadBroadcasterChestSettings() {
@@ -854,6 +874,12 @@ async function loadBroadcasterChestSettings() {
         return null;
     }
 
+    // Skip fetch if we already know this broadcaster has no settings (this session)
+    if (broadcastersWithNoSettings.has(broadcasterId)) {
+        chestLog('loadBroadcasterChestSettings: Skipping fetch, broadcaster has no settings (cached)');
+        return null;
+    }
+
     // Check if Firebase is available
     if (typeof FIRESTORE_BASE_URL === 'undefined') {
         chestWarn('loadBroadcasterChestSettings: Firebase not available');
@@ -866,8 +892,9 @@ async function loadBroadcasterChestSettings() {
         const response = await fetch(`${FIRESTORE_BASE_URL}/chestSettings/${broadcasterId}`);
 
         if (response.status === 404) {
-            // No settings saved for this broadcaster
-            chestLog('loadBroadcasterChestSettings: No settings for this broadcaster');
+            // No settings saved for this broadcaster - cache this for the session
+            broadcastersWithNoSettings.add(broadcasterId);
+            chestLog('loadBroadcasterChestSettings: No settings for this broadcaster (cached for session)');
             broadcasterChestSettings = null;
             return null;
         }
@@ -1063,6 +1090,10 @@ async function onViewerThresholdReached() {
 
     // Clear cache and fetch fresh data
     broadcasterChestSettings = null;
+    const broadcasterId = await getBroadcasterUserId();
+    if (broadcasterId) {
+        broadcastersWithNoSettings.delete(broadcasterId); // Allow refetch
+    }
     await loadBroadcasterChestSettings();
 
     if (!broadcasterChestSettings || !broadcasterChestSettings.chestDropStartTime) {
@@ -1567,6 +1598,7 @@ function checkBroadcastStatus() {
 // as audience list changes. Refresh lastChestOpenLikes when chest drops.
 
 let viewerModeActive = false;
+let viewerChestEnabledUnsubscribe = null;
 
 async function startViewerMonitoring() {
     if (viewerModeActive) return; // Already in viewer mode
@@ -1581,8 +1613,31 @@ async function startViewerMonitoring() {
     viewerModeActive = true;
     chestLog('startViewerMonitoring: Starting viewer monitoring');
 
-    // Load settings from Firebase once
-    await loadBroadcasterChestSettings();
+    // Get broadcaster ID for subscriptions
+    const broadcasterId = await getBroadcasterUserId();
+
+    // Subscribe to chestEnabled realtime updates (fires when broadcaster enables/disables)
+    if (broadcasterId && typeof subscribeToChestEnabled === 'function') {
+        chestLog('startViewerMonitoring: Subscribing to chestEnabled for', broadcasterId);
+        viewerChestEnabledUnsubscribe = await subscribeToChestEnabled(broadcasterId, async (enabledData) => {
+            if (enabledData && enabledData.enabled) {
+                chestLog('startViewerMonitoring: Broadcaster has chest enabled, loading full settings');
+                // Broadcaster has chest enabled - load full settings from chestSettings
+                broadcastersWithNoSettings.delete(broadcasterId);
+                broadcasterChestSettings = null; // Force refetch
+                await loadBroadcasterChestSettings();
+                updateViewerNoticeBar();
+            } else {
+                chestLog('startViewerMonitoring: Broadcaster chest not enabled');
+                broadcasterChestSettings = null;
+                updateViewerNoticeBar();
+            }
+        });
+    } else {
+        // Fallback: just load settings once if realtime not available
+        chestLog('startViewerMonitoring: Realtime not available, loading settings once');
+        await loadBroadcasterChestSettings();
+    }
 
     // Initial notice bar update
     updateViewerNoticeBar();
@@ -1666,6 +1721,9 @@ async function startViewerMonitoring() {
 
                             // Refresh Firebase to get new lastChestOpenLikes immediately
                             broadcasterChestSettings = null;
+                            getBroadcasterUserId().then(bid => {
+                                if (bid) broadcastersWithNoSettings.delete(bid);
+                            });
                             loadBroadcasterChestSettings().then(() => {
                                 // Check if threshold still met - if so, wait 3s then fetch timestamp
                                 const currentLikes = getAudienceLikes();
@@ -1718,6 +1776,13 @@ function stopViewerMonitoring() {
     viewerModeActive = false;
     viewerWaitingForCountdown = false;
     viewerWaitingForAnimation = false;
+
+    // Unsubscribe from realtime listener
+    if (viewerChestEnabledUnsubscribe) {
+        viewerChestEnabledUnsubscribe();
+        viewerChestEnabledUnsubscribe = null;
+        chestLog('stopViewerMonitoring: Unsubscribed from chestEnabled');
+    }
 
     if (viewerAudienceObserver) {
         viewerAudienceObserver.disconnect();
