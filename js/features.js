@@ -66,33 +66,6 @@ function isOnLiveBroadcast() {
     return true;
 }
 
-// Watch for offline element appearing and remove toolbar
-function setupOfflineWatcher() {
-    const observer = new MutationObserver(() => {
-        const isOffline = document.querySelector('app-video-player-broadcaster-offline') !== null;
-        const toolbar = document.getElementById('betternow-toolbar');
-        if (isOffline && toolbar) {
-            featuresLog('Offline element detected - removing toolbar');
-            toolbar.remove();
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-}
-
-// Start watching immediately
-setupOfflineWatcher();
-
-// Stricter check for features that need video content
-function isVideoReady() {
-    const videoPlayer = document.querySelector('.video-player:not(app-broadcasts-carousel .video-player)');
-    if (!videoPlayer) return false;
-
-    const video = videoPlayer.querySelector('video');
-    if (!video) return false;
-
-    return video.readyState > 0 || video.src || video.srcObject;
-}
-
 // Export for other modules
 window.isOnLiveBroadcast = isOnLiveBroadcast;
 
@@ -212,12 +185,12 @@ function createBetterNowToolbar() {
         background: ${isGridEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
     `;
     gridToggle.onclick = () => {
-        // Toggle the global variable if it exists, otherwise use localStorage
+        // Toggle the global variable (setter writes to localStorage automatically)
         if (typeof gridViewEnabled !== 'undefined') {
             gridViewEnabled = !gridViewEnabled;
-            localStorage.setItem('betternow-grid-view', gridViewEnabled.toString());
             gridToggle.style.background = gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
         } else {
+            // Fallback if grid.js hasn't loaded
             const newState = localStorage.getItem('betternow-grid-view') !== 'true';
             localStorage.setItem('betternow-grid-view', newState.toString());
             gridToggle.style.background = newState ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
