@@ -130,11 +130,19 @@ async function renderOnlineUsers(forceRefresh = false) {
         return;
     }
 
+    // Sort users: those watching a stream first, then those not in a stream
+    const sortedUsers = [...displayUsers].sort((a, b) => {
+        if (a.stream && !b.stream) return -1;
+        if (!a.stream && b.stream) return 1;
+        return 0;
+    });
+
     // Render user list
-    container.innerHTML = displayUsers.map(user => {
+    container.innerHTML = sortedUsers.map(user => {
+        // Only show stream info if user is watching a stream
         const streamHtml = user.stream
-            ? `<span style="color: #fff; font-size: 12px;">watching </span><a href="/${user.stream}" target="_blank" style="color: #fff; font-size: 12px; text-decoration: none;">${user.stream}</a>`
-            : '<span style="color: #fff; font-size: 12px;">Not in a stream</span>';
+            ? `<span style="color: #888; font-size: 12px;">watching </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`
+            : '';
 
         const timeAgo = getTimeAgo(user.lastSeen);
 
