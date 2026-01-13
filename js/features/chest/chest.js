@@ -1619,7 +1619,7 @@ async function startViewerMonitoring() {
     // Subscribe to chestEnabled realtime updates (fires when broadcaster enables/disables)
     if (broadcasterId && typeof subscribeToChestEnabled === 'function') {
         chestLog('startViewerMonitoring: Subscribing to chestEnabled for', broadcasterId);
-        viewerChestEnabledUnsubscribe = await subscribeToChestEnabled(broadcasterId, async (enabledData) => {
+        viewerChestEnabledUnsubscribe = subscribeToChestEnabled(broadcasterId, async (enabledData) => {
             if (enabledData && enabledData.enabled) {
                 chestLog('startViewerMonitoring: Broadcaster has chest enabled, loading full settings');
                 // Broadcaster has chest enabled - load full settings from chestSettings
