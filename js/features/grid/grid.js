@@ -1,7 +1,7 @@
 // ============ Grid View ============
 // Toggle grid layout for multiple video streams
 
-const GRID_DEBUG = true; // Set to false before release
+const GRID_DEBUG = false; // Set to false before release
 
 function gridLog(...args) {
     if (GRID_DEBUG) {
