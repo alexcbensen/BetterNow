@@ -204,11 +204,36 @@ function initializeExtension() {
     });
     popoverObserver.observe(document.body, { childList: true, subtree: true });
 
-    // NOTE: Grid view is now handled by the toolbar button toggle only
-    // No observer needed - applyGridView() is called when:
-    // 1. Toolbar is created (initial state)
-    // 2. Grid button is clicked (user toggle)
-    // The CSS handles responsive layout automatically
+    // Watch for grid toggle button container and video count changes
+    const gridObserver = new MutationObserver((mutations) => {
+        if (extensionDisabled) return;
+        // Check if toolbar or video tiles changed
+        const shouldUpdate = mutations.some(mutation => {
+            if (mutation.type === 'childList') {
+                const target = mutation.target;
+                return target.matches?.('.top-button-wrapper, .fullscreen-wrapper') ||
+                    target.closest?.('.top-button-wrapper, .fullscreen-wrapper') ||
+                    Array.from(mutation.addedNodes).some(node =>
+                            node.nodeType === 1 && (
+                                node.matches?.('.top-button-wrapper, .fullscreen-wrapper, .video') ||
+                                node.querySelector?.('.top-button-wrapper, .fullscreen-wrapper, .video')
+                            )
+                    ) ||
+                    Array.from(mutation.removedNodes).some(node =>
+                        node.nodeType === 1 && node.matches?.('.video')
+                    );
+            }
+            return false;
+        });
+
+        if (shouldUpdate) {
+            if (typeof applyGridView === 'function') applyGridView();
+        }
+    });
+    gridObserver.observe(document.body, { childList: true, subtree: true });
+
+    // Run grid view once on load
+    if (typeof applyGridView === 'function') applyGridView();
 
     // Watch for broadcast status changes (END button appearing/disappearing)
     const broadcastObserver = new MutationObserver((mutations) => {
@@ -248,6 +273,7 @@ function initializeExtension() {
 // Must wait for blocked user check before creating toolbar
 
 let toolbarObserver = null;
+let liveClassObserver = null;
 
 function initBetterNowToolbar() {
     // Don't create toolbar if extension is disabled
@@ -258,21 +284,74 @@ function initBetterNowToolbar() {
         createBetterNowToolbar();
     }
 
+    // Watch for .broadcaster-is-online class changes and offline element
+    // This fires immediately when navigating away from a broadcast
+    liveClassObserver = new MutationObserver((mutations) => {
+        if (extensionDisabled) return;
+
+        const toolbar = document.getElementById('betternow-toolbar');
+        if (!toolbar) return;
+
+        for (const mutation of mutations) {
+            // Check for class changes on main-container
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const target = mutation.target;
+                if (target.classList?.contains('main-container')) {
+                    const isLive = target.classList.contains('broadcaster-is-online');
+
+                    // Immediately remove toolbar when leaving live broadcast
+                    if (!isLive) {
+                        toolbar.remove();
+                        if (typeof resetToolbarFeatures === 'function') resetToolbarFeatures();
+                        return;
+                    }
+                }
+            }
+
+            // Check for offline element appearing
+            if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        if (node.matches?.('app-video-player-broadcaster-offline') ||
+                            node.querySelector?.('app-video-player-broadcaster-offline')) {
+                            toolbar.remove();
+                            if (typeof resetToolbarFeatures === 'function') resetToolbarFeatures();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Observe class changes and child additions
+    liveClassObserver.observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['class']
+    });
+
     // Also watch for navigation/DOM changes to create toolbar when needed
     toolbarObserver = new MutationObserver((mutations) => {
-        // Skip if extension disabled or toolbar already exists
-        if (extensionDisabled || document.getElementById('betternow-toolbar')) return;
+        if (extensionDisabled) return;
 
-        // Check for relevant changes
+        const toolbar = document.getElementById('betternow-toolbar');
+
+        // Don't create if toolbar already exists
+        if (toolbar) return;
+
+        // Check if we should create toolbar
+        if (!isOnLiveBroadcast()) return;
+
+        // Only create if relevant elements were added
         for (const mutation of mutations) {
             if (mutation.addedNodes.length > 0) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
                         if (node.matches?.('app-top-toolbar, .broadcaster-is-online, .video-player') ||
                             node.querySelector?.('app-top-toolbar, .broadcaster-is-online, .video-player')) {
-                            if (isOnLiveBroadcast()) {
-                                createBetterNowToolbar();
-                            }
+                            createBetterNowToolbar();
                             return;
                         }
                     }
