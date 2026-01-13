@@ -1,9 +1,9 @@
 // ============ Missions Auto-Claim ============
 // Automatically claims completed daily missions
-// First claim: user clicks manually, we capture TDI
-// Subsequent claims: uses API directly with captured TDI
+// First claim: captures TDI from UI click
+// Future claims: uses API directly with captured TDI
 
-const MISSIONS_DEBUG = true; // Set to false for production
+const MISSIONS_DEBUG = false;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
@@ -21,55 +21,53 @@ function missionsError(...args) {
 
 let missionsAutoClaimEnabled = localStorage.getItem('betternow_missionsAutoClaim') === 'true';
 let missionsObserver = null;
-let isClaimingMissions = false;
+let isClaimingMission = false;
 let missionsClaimedCount = 0;
+let lastMissionsCheck = 0;
 let tdiCaptureActive = false;
-
-// Delay between mission claims (ms)
-const MISSION_CLAIM_DELAY_MS = 1000;
 
 // API endpoints
 const MISSIONS_API_BASE = 'https://api.younow.com/php/api/userMissions';
 
 // ============ TDI Capture ============
-// Injects into page context to intercept XHR/fetch requests
+// Intercepts XHR requests to capture the TDI when user claims via UI
 
 function setupTdiCapture() {
     if (tdiCaptureActive) return;
     tdiCaptureActive = true;
 
-    // Inject the TDI capture script into page context
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('js/features/missions/tdi-capture.js');
-    script.onload = function() {
-        this.remove();
-        missionsLog('TDI capture script injected into page context');
+    const originalXHRSend = XMLHttpRequest.prototype.send;
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+
+    XMLHttpRequest.prototype.open = function(method, url) {
+        this._betternowUrl = url;
+        this._betternowMethod = method;
+        return originalXHROpen.apply(this, arguments);
     };
-    (document.head || document.documentElement).appendChild(script);
 
-    // Listen for TDI captured via postMessage from page context
-    window.addEventListener('message', function(event) {
-        if (event.data && event.data.type === 'BETTERNOW_TDI_CAPTURED') {
-            const tdi = event.data.tdi;
-            if (tdi) {
-                const existingTdi = localStorage.getItem('betternow_tdi');
-                if (!existingTdi || existingTdi !== tdi) {
-                    localStorage.setItem('betternow_tdi', tdi);
-                    missionsLog('TDI captured and stored:', tdi.substring(0, 20) + '...');
-
-                    // Auto-claim remaining missions after TDI capture
-                    if (missionsAutoClaimEnabled) {
-                        missionsLog('Auto-claiming remaining missions after TDI capture...');
-                        setTimeout(() => {
-                            claimAllRemainingMissions();
-                        }, MISSION_CLAIM_DELAY_MS);
+    XMLHttpRequest.prototype.send = function(data) {
+        // Check for mission claim requests
+        if (data && typeof data === 'string' &&
+            this._betternowUrl?.includes('userMissions/claim') &&
+            data.includes('tdi=')) {
+            try {
+                const params = new URLSearchParams(data);
+                const tdi = params.get('tdi');
+                if (tdi) {
+                    const existingTdi = localStorage.getItem('betternow_tdi');
+                    if (!existingTdi || existingTdi !== tdi) {
+                        localStorage.setItem('betternow_tdi', tdi);
+                        missionsLog('TDI captured from UI claim:', tdi);
                     }
                 }
+            } catch (e) {
+                missionsError('TDI capture error:', e);
             }
         }
-    });
+        return originalXHRSend.call(this, data);
+    };
 
-    missionsLog('TDI capture listener initialized');
+    missionsLog('TDI capture initialized');
 }
 
 // Get stored TDI
@@ -82,10 +80,15 @@ function hasTdi() {
     return !!getTdi();
 }
 
+// Get REQUEST_BY token (required security header)
+function getRequestBy() {
+    return localStorage.getItem('REQUEST_BY');
+}
+
 // ============ User ID ============
 
 function getMissionsUserId() {
-    // Try to get from currentUserId global (set by script.js)
+    // Try to get from currentUserId global (set by admin.js)
     if (typeof currentUserId !== 'undefined' && currentUserId) {
         return currentUserId;
     }
@@ -158,6 +161,7 @@ function getClaimableMissionsFromData(data) {
 async function claimMissionApi(mission) {
     const userId = getMissionsUserId();
     const tdi = getTdi();
+    const requestBy = getRequestBy();
 
     if (!userId) {
         missionsError('claimMissionApi: Could not get userId');
@@ -165,7 +169,12 @@ async function claimMissionApi(mission) {
     }
 
     if (!tdi) {
-        missionsWarn('claimMissionApi: No TDI available - need manual claim first');
+        missionsWarn('claimMissionApi: No TDI available');
+        return false;
+    }
+
+    if (!requestBy) {
+        missionsWarn('claimMissionApi: No REQUEST_BY token in localStorage');
         return false;
     }
 
@@ -184,7 +193,8 @@ async function claimMissionApi(mission) {
             method: 'POST',
             credentials: 'include',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-By': requestBy
             },
             body: body.toString()
         });
@@ -196,13 +206,14 @@ async function claimMissionApi(mission) {
 
         const result = await response.json();
 
+        // Check for API-level errors
         if (result.errorCode) {
-            missionsError('claimMissionApi: API error', result.errorCode, result.errorMsg);
+            missionsError('claimMissionApi: API error', result.errorCode, result.errorMsg || '');
             return false;
         }
 
         missionsClaimedCount++;
-        missionsLog(`claimMissionApi: SUCCESS - Claimed "${mission.title}" (total this session: ${missionsClaimedCount})`);
+        missionsLog(`claimMissionApi: Claimed "${mission.title}" (total this session: ${missionsClaimedCount})`);
         return true;
     } catch (e) {
         missionsError('claimMissionApi: Error', e);
@@ -210,73 +221,9 @@ async function claimMissionApi(mission) {
     }
 }
 
-// ============ Auto-Claim Logic ============
+// ============ UI-Based Claiming ============
+// Used when no TDI is available - opens UI and clicks buttons
 
-async function claimAllRemainingMissions() {
-    if (isClaimingMissions) {
-        missionsLog('claimAllRemainingMissions: Already claiming, skipping');
-        return;
-    }
-
-    if (!hasTdi()) {
-        missionsLog('claimAllRemainingMissions: No TDI yet - waiting for manual claim');
-        return;
-    }
-
-    isClaimingMissions = true;
-    missionsLog('claimAllRemainingMissions: Starting...');
-
-    try {
-        // Fetch current missions
-        const data = await fetchMissions();
-        if (!data) {
-            missionsWarn('claimAllRemainingMissions: Could not fetch missions');
-            isClaimingMissions = false;
-            return;
-        }
-
-        // Get claimable missions
-        const claimable = getClaimableMissionsFromData(data);
-        missionsLog(`claimAllRemainingMissions: Found ${claimable.length} claimable missions`);
-
-        if (claimable.length === 0) {
-            missionsLog('claimAllRemainingMissions: No missions to claim');
-            isClaimingMissions = false;
-            return;
-        }
-
-        // Claim each mission with delay
-        let claimedCount = 0;
-        for (const mission of claimable) {
-            const success = await claimMissionApi(mission);
-            if (success) {
-                claimedCount++;
-            }
-
-            // Wait before next claim
-            if (claimable.indexOf(mission) < claimable.length - 1) {
-                missionsLog(`claimAllRemainingMissions: Waiting ${MISSION_CLAIM_DELAY_MS}ms before next claim...`);
-                await new Promise(resolve => setTimeout(resolve, MISSION_CLAIM_DELAY_MS));
-            }
-        }
-
-        missionsLog(`claimAllRemainingMissions: Done - claimed ${claimedCount}/${claimable.length} missions`);
-
-    } catch (e) {
-        missionsError('claimAllRemainingMissions: Error:', e);
-    }
-
-    isClaimingMissions = false;
-}
-
-// ============ Mission Complete Detection ============
-
-function isMissionCompletePopupVisible() {
-    const popup = document.querySelector('popover-container.popover--onboarding .popover-body');
-    return popup && popup.textContent.trim() === 'Mission Complete';
-}
-
-// Open the missions dashboard modal
 async function openMissionsDashboard() {
     const button = document.querySelector('app-button-daily-missions button');
     if (!button) {
@@ -301,27 +248,26 @@ async function openMissionsDashboard() {
     return false;
 }
 
-// Click the bottom-most claimable mission to capture TDI
-async function clickBottomMissionToCaptuteTdi() {
+async function closeMissionsDashboard() {
+    document.body.click();
+    await new Promise(resolve => setTimeout(resolve, 200));
+}
+
+async function claimOneMissionViaUI() {
     const dashboard = document.querySelector('popover-container.popover--daily-missions-dashboard');
-    if (!dashboard) {
-        missionsWarn('clickBottomMissionToCaptuteTdi: Dashboard not found');
-        return false;
-    }
+    if (!dashboard) return false;
 
-    // Find all claim buttons - get the last one (bottom-most)
+    // Find a claim button
     const claimButtons = dashboard.querySelectorAll('.mission-wrapper.is-claim .button--green');
-    const claimButtonsArray = Array.from(claimButtons).filter(btn => btn.textContent.trim() === 'Claim');
+    const claimButton = Array.from(claimButtons).find(btn => btn.textContent.trim() === 'Claim');
 
-    if (claimButtonsArray.length === 0) {
-        missionsLog('clickBottomMissionToCaptuteTdi: No claim buttons found');
+    if (!claimButton) {
+        missionsLog('claimOneMissionViaUI: No claim button found');
         return false;
     }
 
-    // Click the last (bottom-most) claim button
-    const bottomButton = claimButtonsArray[claimButtonsArray.length - 1];
-    missionsLog('clickBottomMissionToCaptuteTdi: Clicking bottom claim button');
-    bottomButton.click();
+    missionsLog('claimOneMissionViaUI: Clicking claim button');
+    claimButton.click();
 
     // Wait for the claim to process (TDI will be captured by our interceptor)
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -329,10 +275,102 @@ async function clickBottomMissionToCaptuteTdi() {
     return true;
 }
 
-// Close the missions dashboard
-async function closeMissionsDashboard() {
-    document.body.click();
-    await new Promise(resolve => setTimeout(resolve, 200));
+// ============ Main Auto-Claim Logic ============
+
+async function autoClaimMissions() {
+    if (!missionsAutoClaimEnabled || isClaimingMission) {
+        return;
+    }
+
+    // Throttle checks to once per 5 seconds
+    const now = Date.now();
+    if (now - lastMissionsCheck < 5000) {
+        return;
+    }
+    lastMissionsCheck = now;
+
+    isClaimingMission = true;
+    missionsLog('autoClaimMissions: Starting claim sequence');
+
+    try {
+        // Fetch current missions
+        const data = await fetchMissions();
+        if (!data) {
+            missionsWarn('autoClaimMissions: Could not fetch missions');
+            isClaimingMission = false;
+            return;
+        }
+
+        // Get claimable missions
+        const claimable = getClaimableMissionsFromData(data);
+        missionsLog(`autoClaimMissions: Found ${claimable.length} claimable missions`);
+
+        if (claimable.length === 0) {
+            missionsLog('autoClaimMissions: No missions to claim');
+            isClaimingMission = false;
+            return;
+        }
+
+        // Check if we have TDI and REQUEST_BY for API claims
+        if (hasTdi() && getRequestBy()) {
+            // Use API to claim all missions
+            missionsLog('autoClaimMissions: Using API method (TDI and REQUEST_BY available)');
+            let claimedCount = 0;
+            for (const mission of claimable) {
+                const success = await claimMissionApi(mission);
+                if (success) {
+                    claimedCount++;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            missionsLog(`autoClaimMissions: Claimed ${claimedCount}/${claimable.length} missions via API`);
+        } else {
+            // No TDI - use UI method to claim ONE mission and capture TDI
+            missionsLog('autoClaimMissions: No TDI - using UI to capture it');
+
+            const opened = await openMissionsDashboard();
+            if (!opened) {
+                isClaimingMission = false;
+                return;
+            }
+
+            // Claim one mission via UI - this will capture the TDI
+            const claimed = await claimOneMissionViaUI();
+
+            if (claimed && hasTdi()) {
+                missionsLog('autoClaimMissions: TDI captured! Claiming remaining via API');
+
+                // Close and use API for remaining
+                await closeMissionsDashboard();
+
+                // Re-fetch to get updated list
+                const newData = await fetchMissions();
+                const remaining = getClaimableMissionsFromData(newData);
+
+                for (const mission of remaining) {
+                    const success = await claimMissionApi(mission);
+                    if (success) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+            } else {
+                // Just close the dashboard
+                await closeMissionsDashboard();
+            }
+        }
+
+    } catch (e) {
+        missionsError('autoClaimMissions: Error during claim sequence:', e);
+    }
+
+    isClaimingMission = false;
+}
+
+// ============ Mission Complete Detection ============
+
+function isMissionCompletePopupVisible() {
+    const popup = document.querySelector('popover-container.popover--onboarding .popover-body');
+    return popup && popup.textContent.trim() === 'Mission Complete';
 }
 
 function setupMissionsObserver() {
@@ -341,10 +379,10 @@ function setupMissionsObserver() {
         return;
     }
 
-    missionsLog('setupMissionsObserver: Starting observer for Mission Complete popup');
+    missionsLog('setupMissionsObserver: Starting observer');
 
     missionsObserver = new MutationObserver((mutations) => {
-        if (!missionsAutoClaimEnabled || isClaimingMissions) return;
+        if (!missionsAutoClaimEnabled || isClaimingMission) return;
 
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
@@ -355,15 +393,7 @@ function setupMissionsObserver() {
                         setTimeout(() => {
                             if (isMissionCompletePopupVisible()) {
                                 missionsLog('Mission Complete popup detected!');
-
-                                // If we have TDI, claim remaining missions after a short delay
-                                if (hasTdi()) {
-                                    setTimeout(claimAllRemainingMissions, MISSION_CLAIM_DELAY_MS);
-                                } else {
-                                    // No TDI yet - open modal and click bottom mission to capture it
-                                    missionsLog('No TDI - will open modal to capture');
-                                    setTimeout(captureTdiAndClaimAll, MISSION_CLAIM_DELAY_MS);
-                                }
+                                setTimeout(autoClaimMissions, 500);
                             }
                         }, 100);
                     }
@@ -376,44 +406,6 @@ function setupMissionsObserver() {
         childList: true,
         subtree: true
     });
-}
-
-// Open modal, click bottom mission to capture TDI, then claim rest via API
-async function captureTdiAndClaimAll() {
-    if (isClaimingMissions) return;
-    isClaimingMissions = true;
-
-    missionsLog('captureTdiAndClaimAll: Opening modal to capture TDI...');
-
-    const opened = await openMissionsDashboard();
-    if (!opened) {
-        isClaimingMissions = false;
-        return;
-    }
-
-    // Small delay for modal to fully render
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Click bottom mission to capture TDI
-    const clicked = await clickBottomMissionToCaptuteTdi();
-
-    if (clicked && hasTdi()) {
-        missionsLog('captureTdiAndClaimAll: TDI captured! Closing modal and claiming rest via API');
-
-        // Wait for claim to complete
-        await new Promise(resolve => setTimeout(resolve, MISSION_CLAIM_DELAY_MS));
-
-        // Close modal
-        await closeMissionsDashboard();
-
-        // Claim remaining via API
-        isClaimingMissions = false;
-        await claimAllRemainingMissions();
-    } else {
-        missionsLog('captureTdiAndClaimAll: Could not capture TDI');
-        await closeMissionsDashboard();
-        isClaimingMissions = false;
-    }
 }
 
 function stopMissionsObserver() {
@@ -468,16 +460,16 @@ function createMissionsAutoClaimButton() {
         flex-shrink: 0;
     `;
 
-    // Show different color based on state
+    // Show different color if we have TDI (fully automatic) vs not (needs first UI claim)
     const hasStoredTdi = hasTdi();
     missionsBtn.style.cssText = btnStyle + `
         background: ${missionsAutoClaimEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
     `;
     missionsBtn.title = hasStoredTdi
-        ? 'Auto-claim missions (ready - TDI captured)'
-        : 'Auto-claim missions (claim one manually to activate)';
+        ? 'Auto-claim missions (API mode)'
+        : 'Auto-claim missions (will capture TDI on first claim)';
 
-    missionsBtn.onclick = async () => {
+    missionsBtn.onclick = () => {
         missionsAutoClaimEnabled = !missionsAutoClaimEnabled;
         localStorage.setItem('betternow_missionsAutoClaim', missionsAutoClaimEnabled.toString());
 
@@ -486,15 +478,6 @@ function createMissionsAutoClaimButton() {
         if (missionsAutoClaimEnabled) {
             missionsBtn.style.background = 'var(--color-primary-green, #08d687)';
             setupMissionsObserver();
-
-            if (hasTdi()) {
-                // Already have TDI, claim any available missions
-                claimAllRemainingMissions();
-            } else {
-                // No TDI - open modal and capture it
-                missionsLog('No TDI on enable - checking for claimable missions...');
-                await captureTdiAndClaimAll();
-            }
         } else {
             missionsBtn.style.background = 'var(--color-mediumgray, #888)';
             stopMissionsObserver();
@@ -512,7 +495,6 @@ function createMissionsAutoClaimButton() {
         leftSection.appendChild(missionsBtn);
     }
 
-    // Start observer if already enabled
     if (missionsAutoClaimEnabled) {
         setupMissionsObserver();
     }
@@ -531,31 +513,33 @@ window.debugMissions = async function() {
 
     console.log('[BetterNow Missions] Current State:');
     console.log('  Enabled:', missionsAutoClaimEnabled);
-    console.log('  TDI:', getTdi() ? getTdi().substring(0, 20) + '...' : '(none)');
+    console.log('  TDI:', getTdi() || '(none)');
+    console.log('  REQUEST_BY:', getRequestBy() || '(none)');
     console.log('  User ID:', getMissionsUserId());
     console.log('  Claimed this session:', missionsClaimedCount);
-    console.log('  Currently claiming:', isClaimingMissions);
-    console.log('  Observer active:', !!missionsObserver);
     console.log('  Claimable missions:', claimable.length);
     claimable.forEach(m => console.log(`    - ${m.title} (id: ${m.missionProgressId})`));
 
-    return { enabled: missionsAutoClaimEnabled, tdi: getTdi(), claimable };
+    return { enabled: missionsAutoClaimEnabled, tdi: getTdi(), requestBy: getRequestBy(), claimable };
 };
 
 window.claimMissionsNow = async function() {
-    missionsLog('Manual claim triggered via console');
-    await claimAllRemainingMissions();
+    missionsLog('Manual claim triggered');
+    isClaimingMission = false;
+    lastMissionsCheck = 0;
+    await autoClaimMissions();
 };
 
 window.clearMissionsTdi = function() {
     localStorage.removeItem('betternow_tdi');
-    console.log('[BetterNow Missions] TDI cleared - next claim will need manual click');
+    console.log('[BetterNow Missions] TDI cleared');
 };
 
 window.setMissionsTdi = function(tdi) {
     localStorage.setItem('betternow_tdi', tdi);
-    console.log('[BetterNow Missions] TDI set manually');
+    console.log('[BetterNow Missions] TDI set to:', tdi);
 };
 
 missionsLog('Missions module initialized');
-missionsLog('TDI status:', hasTdi() ? 'Ready' : 'Waiting for manual claim');
+missionsLog('Stored TDI:', getTdi() || '(none - will capture on first UI claim)');
+missionsLog('REQUEST_BY:', getRequestBy() || '(none - should be set by YouNow)');
