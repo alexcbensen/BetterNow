@@ -1,8 +1,7 @@
 // ============ Grid View ============
 // Toggle grid layout for multiple video streams
 
-// Class name for grid view (unique to avoid conflicts with YouNow's classes)
-const GRID_CLASS = 'betternow-grid-active';
+let gridViewEnabled = localStorage.getItem('betternow-grid-view') === 'true';
 
 function getVideoCount() {
     // Only count video tiles that have an active video or audio stream
@@ -16,20 +15,24 @@ function createGridToggle() {
 }
 
 function applyGridView() {
-    // Always read from localStorage as the source of truth
-    const isEnabled = localStorage.getItem('betternow-grid-view') === 'true';
     const videoCount = getVideoCount();
 
     // Only apply grid view if enabled AND 2+ videos
-    if (isEnabled && videoCount >= 2) {
-        document.body.classList.add(GRID_CLASS);
+    if (gridViewEnabled && videoCount >= 2) {
+        document.body.classList.add('grid-view-enabled');
     } else {
-        document.body.classList.remove(GRID_CLASS);
+        document.body.classList.remove('grid-view-enabled');
     }
 }
 
+// Observer placeholder for future grid view adjustments
+const audioSmallObserver = new MutationObserver((mutations) => {
+    // Currently disabled
+});
+audioSmallObserver.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
 function fixVideoFit() {
-    const isGridView = document.body.classList.contains(GRID_CLASS);
+    const isGridView = document.body.classList.contains('grid-view-enabled');
     const allVideos = document.querySelectorAll('.video-player video');
 
     allVideos.forEach(video => {
