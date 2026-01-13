@@ -156,16 +156,25 @@ function createBetterNowToolbar() {
     leftSection.appendChild(cssToggle);
 
     // Add Grid View toggle button
+    // Read initial state directly from localStorage (don't rely on global variable)
+    const isGridEnabled = localStorage.getItem('betternow-grid-view') === 'true';
+
     const gridToggle = document.createElement('button');
     gridToggle.id = 'grid-toggle-btn';
     gridToggle.textContent = 'GRID VIEW';
     gridToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
-        background: ${gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        background: ${isGridEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
     `;
     gridToggle.onclick = () => {
-        gridViewEnabled = !gridViewEnabled;
-        localStorage.setItem('betternow-grid-view', gridViewEnabled.toString());
-        gridToggle.style.background = gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
+        // Read current state from localStorage, toggle it, write back
+        const currentState = localStorage.getItem('betternow-grid-view') === 'true';
+        const newState = !currentState;
+        localStorage.setItem('betternow-grid-view', newState.toString());
+
+        // Update button appearance
+        gridToggle.style.background = newState ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
+
+        // Apply the change (applyGridView reads from localStorage)
         applyGridView();
     };
     leftSection.appendChild(gridToggle);

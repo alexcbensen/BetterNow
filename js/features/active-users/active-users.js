@@ -47,13 +47,14 @@ async function updateOnlineBetterNowUsers() {
 
         activeUsersLog('updateOnlineBetterNowUsers: Got', onlineBetterNowUserIds.size, 'online users:', [...onlineBetterNowUserIds]);
 
-        // Trigger chat styles update to apply badges
-        if (typeof applyChatStyles === 'function') {
-            const chatMessages = document.querySelectorAll('app-chat-list li').length;
-            activeUsersLog('updateOnlineBetterNowUsers: Calling applyChatStyles, chat messages in DOM:', chatMessages);
-            applyChatStyles();
+        // Trigger presence-dependent styling (badges, online indicators)
+        // Uses applyPresenceStyles() which is separate from applyChatStyles()
+        // so that borders/colors load instantly without waiting for presence
+        if (typeof applyPresenceStyles === 'function') {
+            activeUsersLog('updateOnlineBetterNowUsers: Calling applyPresenceStyles');
+            applyPresenceStyles();
         } else {
-            activeUsersLog('updateOnlineBetterNowUsers: applyChatStyles not available!');
+            activeUsersLog('updateOnlineBetterNowUsers: applyPresenceStyles not available!');
         }
 
         return users;

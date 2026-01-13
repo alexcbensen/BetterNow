@@ -38,6 +38,7 @@ async function loadSettingsFromFirebase() {
         const data = await response.json();
         firebaseSettings = parseFirestoreDocument(data.fields);
         settingsLoaded = true;
+        console.log('[BetterNow] Firebase settings loaded at', Date.now());
 
         // Update the global config variables
         applyFirebaseSettings();

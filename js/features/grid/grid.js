@@ -1,16 +1,8 @@
 // ============ Grid View ============
 // Toggle grid layout for multiple video streams
-// BUILD: 2026-01-13-GAMMA
 
-// This log proves the NEW file loaded
-console.log('%c[BetterNow] Grid.js BUILD 2026-01-13-GAMMA loaded!', 'background: #22c55e; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
-
-// NOTE: Using 'betternow-grid-active' instead of 'grid-view-enabled'
-// because YouNow's Angular app has its own 'grid-view-enabled' class that conflicts!
-
+// Class name for grid view (unique to avoid conflicts with YouNow's classes)
 const GRID_CLASS = 'betternow-grid-active';
-
-let gridViewEnabled = localStorage.getItem('betternow-grid-view') === 'true';
 
 function getVideoCount() {
     // Only count video tiles that have an active video or audio stream
@@ -24,11 +16,9 @@ function createGridToggle() {
 }
 
 function applyGridView() {
-    // ALWAYS read fresh from localStorage - don't trust the variable!
+    // Always read from localStorage as the source of truth
     const isEnabled = localStorage.getItem('betternow-grid-view') === 'true';
     const videoCount = getVideoCount();
-
-    console.log('[BetterNow Grid] applyGridView:', { isEnabled, videoCount, shouldEnable: isEnabled && videoCount >= 2 });
 
     // Only apply grid view if enabled AND 2+ videos
     if (isEnabled && videoCount >= 2) {
@@ -37,12 +27,6 @@ function applyGridView() {
         document.body.classList.remove(GRID_CLASS);
     }
 }
-
-// Observer placeholder for future grid view adjustments
-const audioSmallObserver = new MutationObserver((mutations) => {
-    // Currently disabled
-});
-audioSmallObserver.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
 function fixVideoFit() {
     const isGridView = document.body.classList.contains(GRID_CLASS);
