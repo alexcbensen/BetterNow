@@ -158,8 +158,8 @@ function userHasFeature(feature) {
     const userId = getCurrentUserId();
     if (!userId) return false;
 
-    // Admins have all features
-    if (ADMIN_USER_IDS.includes(userId)) return true;
+    // Admins (from ADMIN_ONLY_USER_IDS) have all features
+    if (ADMIN_USER_IDS.includes(userId) || ADMIN_USER_IDS.includes(String(userId))) return true;
 
     // Check granted features
     const features = grantedFeatures[userId] || [];
@@ -205,15 +205,18 @@ function createFilterBypassButton() {
     `;
     filterBypassBtn.style.cssText = btnStyle + `
         background: ${chatFilterBypassEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        color: ${chatFilterBypassEnabled ? '#000' : 'var(--color-white, #fff)'};
     `;
     filterBypassBtn.title = 'Bypass YouNow chat word filter';
     filterBypassBtn.onclick = () => {
         chatFilterBypassEnabled = !chatFilterBypassEnabled;
         if (chatFilterBypassEnabled) {
             filterBypassBtn.style.background = 'var(--color-primary-green, #08d687)';
+            filterBypassBtn.style.color = '#000';
             enableChatFilterBypass();
         } else {
             filterBypassBtn.style.background = 'var(--color-mediumgray, #888)';
+            filterBypassBtn.style.color = 'var(--color-white, #fff)';
             disableChatFilterBypass();
         }
         localStorage.setItem('betternow_chatFilterBypass', chatFilterBypassEnabled);
@@ -257,7 +260,9 @@ function normalizeHex(value) {
 function verifyAdminUser() {
     const userId = getCurrentUserId();
     if (!userId) return false;
-    return ADMIN_USER_IDS.includes(userId);
+
+    // Check admin list (ADMIN_ONLY_USER_IDS)
+    return ADMIN_USER_IDS.includes(userId) || ADMIN_USER_IDS.includes(String(userId));
 }
 
 async function createAdminPanelEntry() {
@@ -843,6 +848,9 @@ function renderFriendUsernames() {
         const settings = friendSettings[odiskd] || {};
         const features = grantedFeatures[odiskd] || [];
         const hasFilterBypass = features.includes('filterBypass');
+        const hasAutoChest = features.includes('autoChest');
+        const hasAutoMissions = features.includes('autoMissions');
+        const isAdmin = ADMIN_ONLY_USER_IDS.includes(odiskd) || ADMIN_ONLY_USER_IDS.includes(String(odiskd));
         return `
         <div style="
             display: flex;
@@ -914,8 +922,21 @@ function renderFriendUsernames() {
             <div style="display: flex; flex-direction: column; gap: 10px;">
                 <p style="color: #888; font-size: 11px; margin: 0;">Grant features to ${username}:</p>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="feature-filterBypass-${odiskd}" ${hasFilterBypass ? 'checked' : ''} style="cursor: pointer;" />
+                    <input type="checkbox" id="feature-admin-${odiskd}" ${isAdmin ? 'checked' : ''} style="cursor: pointer;" />
+                    <label for="feature-admin-${odiskd}" style="color: #f59e0b; font-size: 13px; cursor: pointer; font-weight: 600;">👑 Admin (all features)</label>
+                </div>
+                <hr style="border: none; border-top: 1px solid #444; margin: 4px 0;" />
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="feature-filterBypass-${odiskd}" ${hasFilterBypass || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
                     <label for="feature-filterBypass-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Filter Bypass</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="feature-autoChest-${odiskd}" ${hasAutoChest || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
+                    <label for="feature-autoChest-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Chest</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="feature-autoMissions-${odiskd}" ${hasAutoMissions || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
+                    <label for="feature-autoMissions-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Missions</label>
                 </div>
                 <button data-save-features="${odiskd}" style="
                     background: #22c55e;
@@ -1124,15 +1145,72 @@ function renderFriendUsernames() {
         });
     });
 
+    // Add change handlers for admin checkboxes (auto-check/disable other features)
+    container.querySelectorAll('[id^="feature-admin-"]').forEach(adminCheckbox => {
+        adminCheckbox.addEventListener('change', () => {
+            const odiskd = adminCheckbox.id.replace('feature-admin-', '');
+            const filterBypassCheckbox = document.getElementById(`feature-filterBypass-${odiskd}`);
+            const autoChestCheckbox = document.getElementById(`feature-autoChest-${odiskd}`);
+            const autoMissionsCheckbox = document.getElementById(`feature-autoMissions-${odiskd}`);
+
+            if (adminCheckbox.checked) {
+                // Admin checked - check and disable all feature checkboxes
+                if (filterBypassCheckbox) {
+                    filterBypassCheckbox.checked = true;
+                    filterBypassCheckbox.disabled = true;
+                }
+                if (autoChestCheckbox) {
+                    autoChestCheckbox.checked = true;
+                    autoChestCheckbox.disabled = true;
+                }
+                if (autoMissionsCheckbox) {
+                    autoMissionsCheckbox.checked = true;
+                    autoMissionsCheckbox.disabled = true;
+                }
+            } else {
+                // Admin unchecked - enable feature checkboxes (keep their checked state)
+                if (filterBypassCheckbox) {
+                    filterBypassCheckbox.disabled = false;
+                }
+                if (autoChestCheckbox) {
+                    autoChestCheckbox.disabled = false;
+                }
+                if (autoMissionsCheckbox) {
+                    autoMissionsCheckbox.disabled = false;
+                }
+            }
+        });
+    });
+
     // Add handlers for save features buttons
     container.querySelectorAll('[data-save-features]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const odiskd = btn.getAttribute('data-save-features');
+            const isAdmin = document.getElementById(`feature-admin-${odiskd}`)?.checked;
             const hasFilterBypass = document.getElementById(`feature-filterBypass-${odiskd}`)?.checked;
+            const hasAutoChest = document.getElementById(`feature-autoChest-${odiskd}`)?.checked;
+            const hasAutoMissions = document.getElementById(`feature-autoMissions-${odiskd}`)?.checked;
 
-            // Build features array
+            // Update ADMIN_ONLY_USER_IDS based on admin checkbox
+            if (isAdmin) {
+                // Add to admin list if not already there
+                if (!ADMIN_ONLY_USER_IDS.includes(odiskd) && !ADMIN_ONLY_USER_IDS.includes(String(odiskd))) {
+                    ADMIN_ONLY_USER_IDS.push(String(odiskd));
+                    // Recompute ADMIN_USER_IDS
+                    ADMIN_USER_IDS = [...ADMIN_ONLY_USER_IDS];
+                }
+            } else {
+                // Remove from admin list
+                ADMIN_ONLY_USER_IDS = ADMIN_ONLY_USER_IDS.filter(id => id !== odiskd && id !== String(odiskd));
+                // Recompute ADMIN_USER_IDS
+                ADMIN_USER_IDS = [...ADMIN_ONLY_USER_IDS];
+            }
+
+            // Build features array (admin feature is now handled via ADMIN_ONLY_USER_IDS)
             const features = [];
             if (hasFilterBypass) features.push('filterBypass');
+            if (hasAutoChest) features.push('autoChest');
+            if (hasAutoMissions) features.push('autoMissions');
 
             grantedFeatures[odiskd] = features;
 
