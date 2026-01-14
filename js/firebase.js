@@ -74,10 +74,12 @@ function subscribeToChestEnabled(broadcasterId, onUpdate) {
         const unsubscribe = docRef.onSnapshot((docSnap) => {
             if (docSnap.exists) {
                 const data = docSnap.data();
-                console.log('[BetterNow] chestEnabled update for', broadcasterId, data);
                 onUpdate({
                     enabled: data.enabled || false,
-                    threshold: data.threshold || 0
+                    threshold: data.threshold || 0,
+                    awaitingConfirmation: data.awaitingConfirmation || false,
+                    chestDropStartTime: data.chestDropStartTime || 0,
+                    likesBeingDropped: data.likesBeingDropped || 0
                 });
             } else {
                 // Document doesn't exist - broadcaster hasn't enabled chest
@@ -105,7 +107,7 @@ function unsubscribeFromChestEnabled() {
 }
 
 // Save chest enabled state (broadcaster only) - writes to chestEnabled collection
-async function saveChestEnabledToFirebase(enabled, threshold) {
+async function saveChestEnabledToFirebase(enabled, threshold, awaitingConfirmation = false, chestDropStartTime = 0, likesBeingDropped = 0) {
     if (!currentUserId) {
         console.warn('[BetterNow] saveChestEnabledToFirebase: currentUserId not set');
         return false;
@@ -120,7 +122,10 @@ async function saveChestEnabledToFirebase(enabled, threshold) {
                 body: JSON.stringify({
                     fields: {
                         enabled: { booleanValue: enabled },
-                        threshold: { integerValue: threshold }
+                        threshold: { integerValue: threshold },
+                        awaitingConfirmation: { booleanValue: awaitingConfirmation },
+                        chestDropStartTime: { integerValue: chestDropStartTime },
+                        likesBeingDropped: { integerValue: likesBeingDropped }
                     }
                 })
             }
@@ -131,7 +136,6 @@ async function saveChestEnabledToFirebase(enabled, threshold) {
             return false;
         }
 
-        console.log('[BetterNow] saveChestEnabledToFirebase: Saved', { enabled, threshold });
         return true;
     } catch (error) {
         console.error('[BetterNow] saveChestEnabledToFirebase: Error', error);
@@ -242,8 +246,8 @@ function applyFirebaseSettings() {
     if (firebaseSettings.adminOnlyUserIds && Array.isArray(firebaseSettings.adminOnlyUserIds)) {
         ADMIN_ONLY_USER_IDS = firebaseSettings.adminOnlyUserIds;
     }
-    // Recompute ADMIN_USER_IDS after loading
-    ADMIN_USER_IDS = [...DEVELOPER_USER_IDS, ...ADMIN_ONLY_USER_IDS];
+    // ADMIN_USER_IDS only includes adminOnlyUserIds (developers get badge only, not admin)
+    ADMIN_USER_IDS = [...ADMIN_ONLY_USER_IDS];
 
     // Re-apply chat styles with new settings
     applyChatStyles();
