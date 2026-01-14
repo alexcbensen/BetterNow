@@ -135,6 +135,7 @@ function createBetterNowToolbar() {
     cssToggle.textContent = 'STICKY HEADER';
     cssToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
         background: ${headerCssEnabled ? 'var(--color-mediumgray, #888)' : 'var(--color-primary-green, #08d687)'};
+        color: ${headerCssEnabled ? 'var(--color-white, #fff)' : '#000'};
     `;
 
     // Apply initial header state
@@ -163,6 +164,7 @@ function createBetterNowToolbar() {
                 header.style.setProperty('border-bottom', 'none', 'important');
                 header.style.setProperty('border-color', 'transparent', 'important');
                 cssToggle.style.background = 'var(--color-mediumgray, #888)';
+                cssToggle.style.color = 'var(--color-white, #fff)';
             } else {
                 // Default YouNow style: sticky header with border
                 header.style.setProperty('position', 'sticky', 'important');
@@ -170,6 +172,7 @@ function createBetterNowToolbar() {
                 header.style.setProperty('border-bottom', 'none', 'important');
                 header.style.setProperty('border-color', 'transparent', 'important');
                 cssToggle.style.background = 'var(--color-primary-green, #08d687)';
+                cssToggle.style.color = '#000';
             }
         }
     };
@@ -183,17 +186,20 @@ function createBetterNowToolbar() {
     const isGridEnabled = typeof gridViewEnabled !== 'undefined' ? gridViewEnabled : localStorage.getItem('betternow-grid-view') === 'true';
     gridToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
         background: ${isGridEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        color: ${isGridEnabled ? '#000' : 'var(--color-white, #fff)'};
     `;
     gridToggle.onclick = () => {
         // Toggle the global variable (setter writes to localStorage automatically)
         if (typeof gridViewEnabled !== 'undefined') {
             gridViewEnabled = !gridViewEnabled;
             gridToggle.style.background = gridViewEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
+            gridToggle.style.color = gridViewEnabled ? '#000' : 'var(--color-white, #fff)';
         } else {
             // Fallback if grid.js hasn't loaded
             const newState = localStorage.getItem('betternow-grid-view') !== 'true';
             localStorage.setItem('betternow-grid-view', newState.toString());
             gridToggle.style.background = newState ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)';
+            gridToggle.style.color = newState ? '#000' : 'var(--color-white, #fff)';
         }
         if (typeof applyGridView === 'function') applyGridView();
     };
