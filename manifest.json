@@ -32,6 +32,7 @@
         "js/features/explore/explore.js",
         "js/features/missions/missions.js",
         "js/features/volume/volume.js",
+        "js/features/auto-confirm/auto-confirm.js",
         "js/firebase.js",
         "js/features/presence/presence.js",
         "js/features/active-users/active-users.js",
