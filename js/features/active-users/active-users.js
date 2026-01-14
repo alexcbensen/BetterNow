@@ -25,7 +25,25 @@ let onlineUsersCacheTime = 0;
 // Admin panel refresh interval
 let onlineUsersRefreshInterval = null;
 
+// Grace period tracking: remembers when we last saw each user in a fetch
+// This prevents badges from flickering when a user's heartbeat is delayed
+let userLastSeenLocally = new Map(); // odiskd -> timestamp
+
+// Grace period: keep users in the Set for 10 minutes even if they disappear from a fetch
+// This covers 2 refresh cycles (5 min each) to handle temporary outages
+const LOCAL_GRACE_PERIOD_MS = 600000; // 10 minutes
+
 // ============ Core Functions ============
+
+// Helper: Check if user is currently viewing a stream
+function isViewingStream() {
+    // These elements only exist on stream pages
+    return !!(
+        document.querySelector('app-chat-list') ||
+        document.querySelector('app-audience') ||
+        document.querySelector('app-broadcast')
+    );
+}
 
 // Fetch online users and update caches
 async function updateOnlineBetterNowUsers() {
@@ -36,16 +54,48 @@ async function updateOnlineBetterNowUsers() {
 
     try {
         const users = await fetchOnlineUsers();
+        const now = Date.now();
+
+        // Check if we're in a stream (grace period only applies in streams)
+        const inStream = isViewingStream();
+
+        // Update local tracking for users we just fetched
+        for (const user of users) {
+            const odiskd = String(user.odiskd);
+            userLastSeenLocally.set(odiskd, now);
+        }
+
+        // Build new Set starting with freshly fetched users
+        const newOnlineSet = new Set(users.map(u => String(u.odiskd)));
+
+        // If in a stream, apply grace period to preserve recently-seen users
+        // This prevents badge flickering when heartbeats are delayed
+        if (inStream) {
+            for (const odiskd of window.onlineBetterNowUserIds) {
+                const lastSeen = userLastSeenLocally.get(odiskd);
+                if (lastSeen && (now - lastSeen) < LOCAL_GRACE_PERIOD_MS) {
+                    newOnlineSet.add(odiskd);
+                }
+            }
+        }
+
+        // Clean up old entries from tracking map (prevent memory leak)
+        for (const [odiskd, timestamp] of userLastSeenLocally.entries()) {
+            if (now - timestamp > LOCAL_GRACE_PERIOD_MS) {
+                userLastSeenLocally.delete(odiskd);
+            }
+        }
 
         // Update ID set for badge display (update both local and window reference)
-        window.onlineBetterNowUserIds = new Set(users.map(u => String(u.odiskd)));
+        window.onlineBetterNowUserIds = newOnlineSet;
         onlineBetterNowUserIds = window.onlineBetterNowUserIds;
 
-        // Update full cache for admin panel
+        // Update full cache for admin panel (always use actual fetched data, not padded)
         cachedOnlineUsers = users;
-        onlineUsersCacheTime = Date.now();
+        onlineUsersCacheTime = now;
 
-        activeUsersLog('updateOnlineBetterNowUsers: Got', onlineBetterNowUserIds.size, 'online users:', [...onlineBetterNowUserIds]);
+        activeUsersLog('updateOnlineBetterNowUsers: Got', users.length, 'from server,',
+            newOnlineSet.size, 'in Set (grace period active:', inStream, ')');
 
         // Trigger presence-dependent styling (badges, online indicators)
         // Uses applyPresenceStyles() which is separate from applyChatStyles()
