@@ -2,7 +2,7 @@
 // Automatically claims completed daily missions via API
 // Uses TRPX_DEVICE_ID and REQUEST_BY from localStorage (set by YouNow for logged-in users)
 
-const MISSIONS_DEBUG = true;
+const MISSIONS_DEBUG = false;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
@@ -185,14 +185,90 @@ async function claimMissionApi(mission) {
 
 // ============ Main Auto-Claim Logic ============
 
-async function autoClaimMissions() {
+// Create a "Missions Claimed" popup matching YouNow's style
+function showMissionsClaimedPopup(claimedCount) {
+    const text = claimedCount === 1 ? 'Mission Claimed' : 'Missions Claimed';
+
+    // Check if popup already exists and just update it
+    const existingPopup = document.querySelector('popover-container.popover--onboarding .popover-body');
+    if (existingPopup) {
+        existingPopup.textContent = text;
+        missionsLog('Updated existing popup text to:', text);
+        return;
+    }
+
+    // Remove any existing BetterNow popup
+    const oldPopup = document.getElementById('betternow-missions-popup');
+    if (oldPopup) oldPopup.remove();
+
+    // Find the missions button to position the popup near it
+    const missionsButton = document.querySelector('app-button-daily-missions');
+    if (!missionsButton) {
+        missionsLog('Could not find missions button for popup positioning');
+        return;
+    }
+
+    const rect = missionsButton.getBoundingClientRect();
+    const buttonCenter = rect.left + (rect.width / 2);
+    const topPos = rect.bottom + 8 - 7; // 8px below button, -7 offset to match YouNow
+
+    // Different offsets for singular vs plural text width
+    const isSingular = claimedCount === 1;
+    const offsetX = isSingular ? 5 : -3;
+    const arrowOffsetX = isSingular ? -20 : -12;
+
+    // Create popup matching YouNow's exact structure
+    const popup = document.createElement('popover-container');
+    popup.setAttribute('role', 'tooltip');
+    popup.className = 'bottom bs-popover-bottom in popover popover--onboarding popover-bottom bottom show';
+    popup.id = 'betternow-missions-popup';
+    popup.style.cssText = `display: block; position: absolute; z-index: 1060; top: 0px; left: 0px; font-size: .875rem; box-shadow: 0 4px 18px rgba(0,0,0,.2); border-radius: var(--small-border-radius, .5rem); background: var(--color-purple-light, #c967ff); border: 0; visibility: hidden;`;
+
+    // Arrow
+    const arrow = document.createElement('div');
+    arrow.className = 'popover-arrow arrow';
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'popover-content popover-body';
+    body.style.cssText = `color: var(--color-white, #fff); padding: .5rem 1rem; font-size: 1rem; font-weight: 500; border-radius: var(--small-border-radius, .5rem); text-align: center; white-space: nowrap;`;
+    body.textContent = text;
+
+    popup.appendChild(arrow);
+    popup.appendChild(body);
+    document.body.appendChild(popup);
+
+    // Position to match YouNow's popup placement
+    const arrowPos = 137 + arrowOffsetX;
+    const leftPos = buttonCenter - 137 + offsetX;
+
+    arrow.style.left = `${arrowPos}px`;
+    popup.style.transform = `translate3d(${leftPos}px, ${topPos}px, 0px)`;
+    popup.style.visibility = 'visible';
+
+    missionsLog('Created missions claimed popup:', text);
+
+    // Fade out after 1.5 seconds (1.5s visible + 1.5s fade)
+    setTimeout(() => {
+        popup.style.transition = 'opacity 1.5s ease-out';
+        popup.style.opacity = '0';
+        setTimeout(() => {
+            if (popup.parentNode) {
+                popup.remove();
+                missionsLog('Removed missions claimed popup');
+            }
+        }, 1500);
+    }, 1500);
+}
+
+async function autoClaimMissions(manualClaimCount = 0) {
     if (!missionsAutoClaimEnabled || isClaimingMission) {
         return;
     }
 
-    // Throttle checks to once per 5 seconds
+    // Throttle checks to once per 5 seconds (skip throttle if manual claim triggered this)
     const now = Date.now();
-    if (now - lastMissionsCheck < 5000) {
+    if (manualClaimCount === 0 && now - lastMissionsCheck < 5000) {
         return;
     }
     lastMissionsCheck = now;
@@ -223,12 +299,6 @@ async function autoClaimMissions() {
         const claimable = getClaimableMissionsFromData(data);
         missionsLog(`autoClaimMissions: Found ${claimable.length} claimable missions`);
 
-        if (claimable.length === 0) {
-            missionsLog('autoClaimMissions: No missions to claim');
-            isClaimingMission = false;
-            return;
-        }
-
         // Claim all missions via API
         let claimedCount = 0;
         for (const mission of claimable) {
@@ -239,6 +309,14 @@ async function autoClaimMissions() {
             }
         }
         missionsLog(`autoClaimMissions: Claimed ${claimedCount}/${claimable.length} missions via API`);
+
+        // Total claimed includes any manually claimed missions
+        const totalClaimed = claimedCount + manualClaimCount;
+
+        // Show popup with how many were claimed
+        if (totalClaimed > 0) {
+            showMissionsClaimedPopup(totalClaimed);
+        }
 
     } catch (e) {
         missionsError('autoClaimMissions: Error during claim sequence:', e);
@@ -283,6 +361,14 @@ function setupMissionsObserver() {
                             }
                         }, 100);
                     }
+
+                    // Check for missions dashboard opening - add click listeners to claim buttons
+                    if (node.matches?.('popover-container.popover--daily-missions-dashboard') ||
+                        node.querySelector?.('popover-container.popover--daily-missions-dashboard')) {
+
+                        missionsLog('Missions dashboard detected, setting up claim button listeners');
+                        setTimeout(setupClaimButtonListeners, 100);
+                    }
                 }
             }
         }
@@ -293,7 +379,39 @@ function setupMissionsObserver() {
         subtree: true
     });
 
-    missionsLog('Observer started - watching for Mission Complete popups');
+    missionsLog('Observer started - watching for Mission Complete popups and dashboard');
+}
+
+// Set up click listeners on claim buttons in the missions dashboard
+function setupClaimButtonListeners() {
+    const dashboard = document.querySelector('popover-container.popover--daily-missions-dashboard');
+    if (!dashboard) return;
+
+    const claimButtons = dashboard.querySelectorAll('.mission-wrapper.is-claim .button--green');
+
+    claimButtons.forEach(btn => {
+        if (btn.dataset.betternowListener) return; // Already has listener
+        btn.dataset.betternowListener = 'true';
+
+        btn.addEventListener('click', () => {
+            if (!missionsAutoClaimEnabled || isClaimingMission) return;
+
+            missionsLog('Manual claim button clicked, will auto-claim remaining missions');
+
+            // Close the missions dashboard
+            const dashboard = document.querySelector('popover-container.popover--daily-missions-dashboard');
+            if (dashboard) {
+                dashboard.remove();
+                missionsLog('Closed missions dashboard');
+            }
+
+            // Wait for the claim to process, then claim the rest
+            // Pass 1 to account for the mission the user just claimed manually
+            setTimeout(() => autoClaimMissions(1), 100);
+        });
+    });
+
+    missionsLog(`Added listeners to ${claimButtons.length} claim buttons`);
 }
 
 function stopMissionsObserver() {
@@ -388,7 +506,11 @@ function createMissionsAutoClaimButton() {
 
 // ============ Initialization ============
 
-// No initialization needed - TDI is read directly from localStorage (TRPX_DEVICE_ID)
+// Start observer on page load if AUTO MISSIONS is enabled
+// This ensures missions are auto-claimed even when toolbar isn't visible (e.g., explore page)
+if (missionsAutoClaimEnabled) {
+    setupMissionsObserver();
+}
 
 // ============ Debug Helpers ============
 
