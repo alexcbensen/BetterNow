@@ -3,8 +3,9 @@
 // Uses a single Firebase document for efficient reads
 
 const PRESENCE_DEBUG = false; // SET TO FALSE FOR PRODUCTION
-const PRESENCE_HEARTBEAT_MS = 60000; // 60 seconds
-const PRESENCE_STALE_MS = 120000; // 2 minutes = considered offline
+const PRESENCE_HEARTBEAT_MS = 300000; // 5 minutes
+const PRESENCE_STALE_MS = 600000; // 10 minutes = considered offline
+const PRESENCE_MIN_UPDATE_INTERVAL_MS = 120000; // Don't update more than once per 2 minutes
 
 function presenceLog(...args) {
     if (PRESENCE_DEBUG) {
@@ -24,6 +25,7 @@ function presenceError(...args) {
 
 let presenceHeartbeatInterval = null;
 let lastPresenceUpdate = 0;
+let lastPresenceStream = null; // Track last stream to detect meaningful changes
 
 // Cache the resolved username to avoid repeated API calls
 let cachedUsername = null;
@@ -50,8 +52,8 @@ function getCurrentStreamInfo() {
 }
 
 // Update user's presence in Firebase
-async function updatePresence() {
-    presenceLog('updatePresence() called');
+async function updatePresence(force = false) {
+    presenceLog('updatePresence() called, force:', force);
 
     // Don't update if extension is disabled or no user ID
     if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
@@ -69,6 +71,15 @@ async function updatePresence() {
 
     const now = Date.now();
     const streamInfo = getCurrentStreamInfo();
+
+    // Throttle updates unless forced or stream changed
+    const timeSinceLastUpdate = now - lastPresenceUpdate;
+    const streamChanged = streamInfo.stream !== lastPresenceStream;
+
+    if (!force && !streamChanged && timeSinceLastUpdate < PRESENCE_MIN_UPDATE_INTERVAL_MS) {
+        presenceLog('updatePresence: Skipped - throttled (last update', timeSinceLastUpdate, 'ms ago)');
+        return;
+    }
 
     // Get username - priority:
     // 1. Cached username (if same user ID)
@@ -165,6 +176,7 @@ async function updatePresence() {
 
         if (response.ok) {
             lastPresenceUpdate = now;
+            lastPresenceStream = streamInfo.stream;
             presenceLog('updatePresence: SUCCESS - response status:', response.status);
 
             // Signal that presence is ready (first successful write)
@@ -300,28 +312,28 @@ function startPresenceHeartbeat() {
     presenceLog('startPresenceHeartbeat: Heartbeat interval:', PRESENCE_HEARTBEAT_MS, 'ms');
     presenceLog('startPresenceHeartbeat: Stale threshold:', PRESENCE_STALE_MS, 'ms');
 
-    // Initial update
+    // Initial update (forced)
     presenceLog('startPresenceHeartbeat: Sending initial presence update');
-    updatePresence();
+    updatePresence(true);
 
-    // Heartbeat interval
+    // Heartbeat interval (forced to ensure regular updates)
     presenceHeartbeatInterval = setInterval(() => {
         presenceLog('startPresenceHeartbeat: Heartbeat tick');
-        updatePresence();
+        updatePresence(true);
     }, PRESENCE_HEARTBEAT_MS);
 
-    // Update on visibility change (tab becomes visible)
+    // Update on visibility change (tab becomes visible) - not forced, will be throttled
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             presenceLog('startPresenceHeartbeat: Tab became visible, updating presence');
-            updatePresence();
+            updatePresence(); // Not forced - will skip if recently updated
         }
     });
 
-    // Update on navigation (SPA)
+    // Update on navigation (SPA) - not forced unless stream changes (handled in updatePresence)
     window.addEventListener('betternow:navigation', () => {
         presenceLog('startPresenceHeartbeat: Navigation detected, updating presence in 500ms');
-        setTimeout(updatePresence, 500); // Delay to let URL update
+        setTimeout(() => updatePresence(), 500); // Not forced - will update if stream changed
     });
 
     // Remove presence on page unload
