@@ -506,11 +506,32 @@ function createMissionsAutoClaimButton() {
 
 // ============ Initialization ============
 
-// Start observer on page load if AUTO MISSIONS is enabled
-// This ensures missions are auto-claimed even when toolbar isn't visible (e.g., explore page)
-if (missionsAutoClaimEnabled) {
-    setupMissionsObserver();
+// Wait for blocked user check before initializing
+function initMissionsIfNotBlocked() {
+    // Check if extension is disabled (user is blocked)
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) {
+        missionsLog('Missions disabled for blocked user');
+        return;
+    }
+
+    // Start observer on page load if AUTO MISSIONS is enabled
+    // This ensures missions are auto-claimed even when toolbar isn't visible (e.g., explore page)
+    if (missionsAutoClaimEnabled) {
+        setupMissionsObserver();
+    }
 }
+
+// Wait for blocked check to complete before initializing
+function waitForBlockedCheckThenInitMissions() {
+    const checkInterval = setInterval(() => {
+        if (typeof blockedCheckComplete !== 'undefined' && blockedCheckComplete) {
+            clearInterval(checkInterval);
+            initMissionsIfNotBlocked();
+        }
+    }, 50);
+}
+
+waitForBlockedCheckThenInitMissions();
 
 // ============ Debug Helpers ============
 
