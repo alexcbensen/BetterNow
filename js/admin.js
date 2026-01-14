@@ -850,6 +850,7 @@ function renderFriendUsernames() {
         const hasFilterBypass = features.includes('filterBypass');
         const hasAutoChest = features.includes('autoChest');
         const hasAutoMissions = features.includes('autoMissions');
+        const hasHideAds = features.includes('hideAds');
         const isAdmin = ADMIN_ONLY_USER_IDS.includes(odiskd) || ADMIN_ONLY_USER_IDS.includes(String(odiskd));
         return `
         <div style="
@@ -937,6 +938,10 @@ function renderFriendUsernames() {
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="feature-autoMissions-${odiskd}" ${hasAutoMissions || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
                     <label for="feature-autoMissions-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Missions</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="feature-hideAds-${odiskd}" ${hasHideAds || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
+                    <label for="feature-hideAds-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Hide Ads</label>
                 </div>
                 <button data-save-features="${odiskd}" style="
                     background: #22c55e;
@@ -1152,6 +1157,7 @@ function renderFriendUsernames() {
             const filterBypassCheckbox = document.getElementById(`feature-filterBypass-${odiskd}`);
             const autoChestCheckbox = document.getElementById(`feature-autoChest-${odiskd}`);
             const autoMissionsCheckbox = document.getElementById(`feature-autoMissions-${odiskd}`);
+            const hideAdsCheckbox = document.getElementById(`feature-hideAds-${odiskd}`);
 
             if (adminCheckbox.checked) {
                 // Admin checked - check and disable all feature checkboxes
@@ -1167,6 +1173,10 @@ function renderFriendUsernames() {
                     autoMissionsCheckbox.checked = true;
                     autoMissionsCheckbox.disabled = true;
                 }
+                if (hideAdsCheckbox) {
+                    hideAdsCheckbox.checked = true;
+                    hideAdsCheckbox.disabled = true;
+                }
             } else {
                 // Admin unchecked - enable feature checkboxes (keep their checked state)
                 if (filterBypassCheckbox) {
@@ -1177,6 +1187,9 @@ function renderFriendUsernames() {
                 }
                 if (autoMissionsCheckbox) {
                     autoMissionsCheckbox.disabled = false;
+                }
+                if (hideAdsCheckbox) {
+                    hideAdsCheckbox.disabled = false;
                 }
             }
         });
@@ -1190,6 +1203,7 @@ function renderFriendUsernames() {
             const hasFilterBypass = document.getElementById(`feature-filterBypass-${odiskd}`)?.checked;
             const hasAutoChest = document.getElementById(`feature-autoChest-${odiskd}`)?.checked;
             const hasAutoMissions = document.getElementById(`feature-autoMissions-${odiskd}`)?.checked;
+            const hasHideAds = document.getElementById(`feature-hideAds-${odiskd}`)?.checked;
 
             // Update ADMIN_ONLY_USER_IDS based on admin checkbox
             if (isAdmin) {
@@ -1211,6 +1225,7 @@ function renderFriendUsernames() {
             if (hasFilterBypass) features.push('filterBypass');
             if (hasAutoChest) features.push('autoChest');
             if (hasAutoMissions) features.push('autoMissions');
+            if (hasHideAds) features.push('hideAds');
 
             grantedFeatures[odiskd] = features;
 

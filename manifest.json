@@ -37,6 +37,7 @@
         "js/features/presence/presence.js",
         "js/features/active-users/active-users.js",
         "js/admin.js",
+        "js/features/hide-ads/hide-ads.js",
         "js/script.js"
       ]
     }
