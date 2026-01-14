@@ -425,12 +425,8 @@ function createMissionsAutoClaimButton() {
     const isLive = document.querySelector('.broadcaster-is-online');
     if (!isLive) return;
 
-    // Admin-only feature for now
-    if (typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined') {
-        if (!ADMIN_USER_IDS.includes(currentUserId) && !ADMIN_USER_IDS.includes(String(currentUserId))) {
-            return;
-        }
-    } else {
+    // Check if user has access to autoMissions feature
+    if (typeof userHasFeature === 'function' && !userHasFeature('autoMissions')) {
         return;
     }
 
@@ -444,7 +440,7 @@ function createMissionsAutoClaimButton() {
 
     const missionsBtn = document.createElement('button');
     missionsBtn.id = 'betternow-missions-btn';
-    missionsBtn.textContent = 'AUTO CLAIM';
+    missionsBtn.textContent = 'AUTO MISSIONS';
     const btnStyle = window.BETTERNOW_BUTTON_STYLE || `
         border: none;
         color: var(--color-white, #fff);
@@ -464,6 +460,7 @@ function createMissionsAutoClaimButton() {
     const hasStoredTdi = hasTdi();
     missionsBtn.style.cssText = btnStyle + `
         background: ${missionsAutoClaimEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        color: ${missionsAutoClaimEnabled ? '#000' : 'var(--color-white, #fff)'};
     `;
     missionsBtn.title = hasStoredTdi
         ? 'Auto-claim missions (API mode)'
@@ -477,9 +474,11 @@ function createMissionsAutoClaimButton() {
 
         if (missionsAutoClaimEnabled) {
             missionsBtn.style.background = 'var(--color-primary-green, #08d687)';
+            missionsBtn.style.color = '#000';
             setupMissionsObserver();
         } else {
             missionsBtn.style.background = 'var(--color-mediumgray, #888)';
+            missionsBtn.style.color = 'var(--color-white, #fff)';
             stopMissionsObserver();
         }
     };
