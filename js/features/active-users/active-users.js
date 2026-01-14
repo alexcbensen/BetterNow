@@ -291,11 +291,11 @@ async function initActiveUsers() {
     // Initial fetch of online users
     await updateOnlineBetterNowUsers();
 
-    // Refresh online users list periodically (every 60 seconds)
+    // Refresh online users list periodically (every 5 minutes)
     setInterval(async () => {
-        activeUsersLog('initActiveUsers: 60s refresh tick');
+        activeUsersLog('initActiveUsers: 5m refresh tick');
         await updateOnlineBetterNowUsers();
-    }, 60000);
+    }, 300000);
 
     activeUsersLog('initActiveUsers: Complete');
 }
