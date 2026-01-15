@@ -2,7 +2,7 @@
 // Automatically claims completed daily missions via API
 // Uses TRPX_DEVICE_ID and REQUEST_BY from localStorage (set by YouNow for logged-in users)
 
-const MISSIONS_DEBUG = false;
+const MISSIONS_DEBUG = true;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
@@ -185,6 +185,19 @@ async function claimMissionApi(mission) {
 
 // ============ Main Auto-Claim Logic ============
 
+// Remove the pink notification badge from the missions button
+function removeMissionsBadge() {
+    const badge = document.querySelector('app-button-daily-missions .topbar-button-badge');
+    if (badge) {
+        badge.style.transition = 'opacity 0.5s ease-out';
+        badge.style.opacity = '0';
+        setTimeout(() => {
+            badge.remove();
+            missionsLog('Removed missions notification badge');
+        }, 500);
+    }
+}
+
 // Create a "Missions Claimed" popup matching YouNow's style
 function showMissionsClaimedPopup(claimedCount) {
     const text = claimedCount === 1 ? 'Mission Claimed' : 'Missions Claimed';
@@ -347,7 +360,11 @@ async function autoClaimMissions(manualClaimCount = 0) {
 
         // Show popup with how many were claimed
         if (totalClaimed > 0) {
-            showMissionsClaimedPopup(totalClaimed);
+            // Remove the notification badge first, then show popup after fade
+            removeMissionsBadge();
+            setTimeout(() => {
+                showMissionsClaimedPopup(totalClaimed);
+            }, 500); // Wait for badge fade to complete
         }
 
     } catch (e) {
