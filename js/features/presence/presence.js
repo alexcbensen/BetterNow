@@ -36,24 +36,36 @@ function getCurrentStreamInfo() {
     const path = window.location.pathname;
     const match = path.match(/^\/([^\/]+)/);
 
-    if (!match) return { stream: null, url: null };
+    if (!match) return { stream: null, url: null, isGuesting: false };
 
     const streamName = match[1].toLowerCase();
 
     // Exclude non-stream pages
     if (['explore', 'moments', 'settings', 'inbox', ''].includes(streamName)) {
-        return { stream: null, url: null };
+        return { stream: null, url: null, isGuesting: false };
     }
 
     // Only report "watching" if the broadcaster is actually live
     const isLive = document.querySelector('.broadcaster-is-online') !== null;
     if (!isLive) {
-        return { stream: null, url: null };
+        return { stream: null, url: null, isGuesting: false };
+    }
+
+    // Check if user is guesting (their tile shows "You")
+    const guestTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    let isGuesting = false;
+    for (const tile of guestTiles) {
+        const usernameEl = tile.querySelector('.username span');
+        if (usernameEl && usernameEl.textContent.trim() === 'You') {
+            isGuesting = true;
+            break;
+        }
     }
 
     return {
         stream: streamName,
-        url: path
+        url: path,
+        isGuesting: isGuesting
     };
 }
 
@@ -143,6 +155,7 @@ async function updatePresence(force = false) {
         avatar: `https://ynassets.younow.com/user/live/${currentUserId}/${currentUserId}.jpg`,
         stream: streamInfo.stream,
         streamUrl: streamInfo.url,
+        isGuesting: streamInfo.isGuesting,
         lastSeen: now
     };
 
@@ -171,6 +184,7 @@ async function updatePresence(force = false) {
                                     avatar: { stringValue: presenceData.avatar },
                                     stream: { stringValue: presenceData.stream || '' },
                                     streamUrl: { stringValue: presenceData.streamUrl || '' },
+                                    isGuesting: { booleanValue: presenceData.isGuesting || false },
                                     lastSeen: { integerValue: presenceData.lastSeen }
                                 }
                             }
@@ -290,6 +304,7 @@ async function fetchOnlineUsers() {
                             avatar: fields.avatar?.stringValue || '',
                             stream: fields.stream?.stringValue || null,
                             streamUrl: fields.streamUrl?.stringValue || null,
+                            isGuesting: fields.isGuesting?.booleanValue || false,
                             lastSeen: lastSeen
                         });
                         presenceLog(`fetchOnlineUsers: User ${fields.username?.stringValue || odiskd} is ONLINE`);
