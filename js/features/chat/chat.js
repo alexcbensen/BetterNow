@@ -373,6 +373,12 @@ function throttledApplyChatStyles() {
     // Run immediately
     applyChatStyles();
 
+    // Also apply presence-dependent styles (badges, online indicators)
+    // Only if presence data has loaded (onlineBetterNowUserIds exists and has entries)
+    if (window.onlineBetterNowUserIds && window.onlineBetterNowUserIds.size > 0) {
+        applyPresenceStyles();
+    }
+
     // Block subsequent calls for 250ms
     chatStylesThrottleTimer = setTimeout(() => {
         chatStylesThrottleTimer = null;
