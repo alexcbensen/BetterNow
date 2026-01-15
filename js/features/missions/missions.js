@@ -2,7 +2,7 @@
 // Automatically claims completed daily missions via API
 // Uses TRPX_DEVICE_ID and REQUEST_BY from localStorage (set by YouNow for logged-in users)
 
-const MISSIONS_DEBUG = true;
+const MISSIONS_DEBUG = false;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
