@@ -253,6 +253,105 @@ const templates = {
                     </div>
                 </div>
                 
+                <!-- Feature Toggles Section (Kill Switches) -->
+                <div style="margin-bottom: 24px;">
+                    <h3 id="feature-toggles-toggle" style="color: white; margin: 0 0 12px 0; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <span id="feature-toggles-arrow" style="font-size: 12px;">▶</span>
+                        Feature Toggles
+                        <span style="
+                            background: #ef4444;
+                            color: white;
+                            font-size: 10px;
+                            padding: 2px 6px;
+                            border-radius: 4px;
+                            font-weight: 600;
+                        ">KILL SWITCH</span>
+                    </h3>
+                    <div id="feature-toggles-content" style="display: none;">
+                        <p style="color: #888; font-size: 12px; margin: 0 0 12px 0;">
+                            Disable features for ALL users instantly. Use this if you discover a bug after deployment.
+                        </p>
+                        <div style="
+                            background: #333;
+                            border-radius: 6px;
+                            padding: 12px;
+                        ">
+                            <div style="display: flex; flex-direction: column; gap: 12px;">
+                                <!-- Auto Chest Toggle -->
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 18px;">📦</span>
+                                        <div>
+                                            <div style="color: #fff; font-size: 14px; font-weight: 500;">Auto Chest</div>
+                                            <div style="color: #888; font-size: 11px;">Automatic chest drops for broadcasters</div>
+                                        </div>
+                                    </div>
+                                    <label style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
+                                        <input type="checkbox" id="killswitch-auto-chest" style="opacity: 0; width: 0; height: 0;">
+                                        <span id="killswitch-auto-chest-slider" style="
+                                            position: absolute;
+                                            cursor: pointer;
+                                            top: 0;
+                                            left: 0;
+                                            right: 0;
+                                            bottom: 0;
+                                            background-color: #ef4444;
+                                            transition: .3s;
+                                            border-radius: 26px;
+                                        "></span>
+                                        <span id="killswitch-auto-chest-dot" style="
+                                            position: absolute;
+                                            content: '';
+                                            height: 20px;
+                                            width: 20px;
+                                            left: 3px;
+                                            bottom: 3px;
+                                            background-color: white;
+                                            transition: .3s;
+                                            border-radius: 50%;
+                                        "></span>
+                                    </label>
+                                </div>
+                                <!-- Auto Missions Toggle -->
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 18px;">🎯</span>
+                                        <div>
+                                            <div style="color: #fff; font-size: 14px; font-weight: 500;">Auto Missions</div>
+                                            <div style="color: #888; font-size: 11px;">Automatic mission claiming</div>
+                                        </div>
+                                    </div>
+                                    <label style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
+                                        <input type="checkbox" id="killswitch-auto-missions" style="opacity: 0; width: 0; height: 0;">
+                                        <span id="killswitch-auto-missions-slider" style="
+                                            position: absolute;
+                                            cursor: pointer;
+                                            top: 0;
+                                            left: 0;
+                                            right: 0;
+                                            bottom: 0;
+                                            background-color: #ef4444;
+                                            transition: .3s;
+                                            border-radius: 26px;
+                                        "></span>
+                                        <span id="killswitch-auto-missions-dot" style="
+                                            position: absolute;
+                                            content: '';
+                                            height: 20px;
+                                            width: 20px;
+                                            left: 3px;
+                                            bottom: 3px;
+                                            background-color: white;
+                                            transition: .3s;
+                                            border-radius: 50%;
+                                        "></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Hidden Broadcasters Section -->
                 <div style="margin-bottom: 24px;">
                     <h3 id="hidden-broadcasters-toggle" style="color: white; margin: 0 0 12px 0; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
