@@ -34,6 +34,10 @@ let firebaseSDKLoaded = false;
 // Active listeners (to clean up on navigation)
 let chestEnabledUnsubscribe = null;
 
+// Global feature kill switches (disabled by admin = feature off for ALL users)
+let globalAutoChestEnabled = true;
+let globalAutoMissionsEnabled = true;
+
 // Initialize Firebase SDK (bundled files loaded via manifest)
 function initFirebaseSDK() {
     if (firebaseSDKLoaded) return true;
@@ -248,6 +252,14 @@ function applyFirebaseSettings() {
     }
     // ADMIN_USER_IDS only includes adminOnlyUserIds (developers get badge only, not admin)
     ADMIN_USER_IDS = [...ADMIN_ONLY_USER_IDS];
+
+    // Load global feature kill switches (default to true if not set)
+    if (typeof firebaseSettings.globalAutoChestEnabled === 'boolean') {
+        globalAutoChestEnabled = firebaseSettings.globalAutoChestEnabled;
+    }
+    if (typeof firebaseSettings.globalAutoMissionsEnabled === 'boolean') {
+        globalAutoMissionsEnabled = firebaseSettings.globalAutoMissionsEnabled;
+    }
 
     // Re-apply chat styles with new settings
     applyChatStyles();
@@ -478,7 +490,7 @@ async function saveSettingsToFirebase() {
         }
 
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle&updateMask.fieldPaths=developerUserIds&updateMask.fieldPaths=adminOnlyUserIds`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle&updateMask.fieldPaths=developerUserIds&updateMask.fieldPaths=adminOnlyUserIds&updateMask.fieldPaths=globalAutoChestEnabled&updateMask.fieldPaths=globalAutoMissionsEnabled`,
             {
                 method: 'PATCH',
                 headers: {
@@ -558,6 +570,12 @@ async function saveSettingsToFirebase() {
                             arrayValue: {
                                 values: ADMIN_ONLY_USER_IDS.map(id => ({ stringValue: String(id) }))
                             }
+                        },
+                        globalAutoChestEnabled: {
+                            booleanValue: globalAutoChestEnabled
+                        },
+                        globalAutoMissionsEnabled: {
+                            booleanValue: globalAutoMissionsEnabled
                         }
                     }
                 })
