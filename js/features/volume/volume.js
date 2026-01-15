@@ -517,9 +517,9 @@ function setupGuestChangeObserver() {
                     [...currentUsernames].join(', ') || '(none)');
                 lastGuestUsernames = currentUsernames;
 
-                // Reapply volumes after a delay to let DOM and video elements fully load
-                setTimeout(() => {
-                    volumeLog('guestChangeObserver: Reapplying volumes after guest change');
+                // Wait for all video elements to load before applying volumes
+                waitForAllTileVideos(() => {
+                    volumeLog('guestChangeObserver: All tile videos ready, applying volumes');
 
                     // Apply volumes to all videos (broadcaster + guests)
                     reapplyAllVolumes();
@@ -527,7 +527,7 @@ function setupGuestChangeObserver() {
                     // Create/update volume sliders for new guests
                     createVolumeSliders();
                     updateVolumeSliderVisibility();
-                }, 500);
+                });
             }
         }
     });
@@ -535,6 +535,70 @@ function setupGuestChangeObserver() {
     guestChangeObserver.observe(fullscreenWrapper, { childList: true });
     lastGuestUsernames = getCurrentGuestUsernames();
     volumeLog('setupGuestChangeObserver: Initial guests:', [...lastGuestUsernames].join(', ') || '(none)');
+}
+
+// Wait for video elements to appear in all tiles before calling callback
+function waitForAllTileVideos(callback) {
+    const tiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+
+    if (tiles.length === 0) {
+        volumeLog('waitForAllTileVideos: No tiles found, calling callback immediately');
+        callback();
+        return;
+    }
+
+    let pendingTiles = 0;
+    let timedOut = false;
+
+    // Safety timeout - don't wait forever
+    const timeoutId = setTimeout(() => {
+        if (pendingTiles > 0) {
+            volumeLog('waitForAllTileVideos: Timeout reached with', pendingTiles, 'tiles still pending');
+            timedOut = true;
+            callback();
+        }
+    }, 5000);
+
+    const checkComplete = () => {
+        if (timedOut) return;
+        pendingTiles--;
+        volumeLog('waitForAllTileVideos: Tile ready, pending:', pendingTiles);
+        if (pendingTiles === 0) {
+            clearTimeout(timeoutId);
+            callback();
+        }
+    };
+
+    tiles.forEach((tile, index) => {
+        const video = tile.querySelector('video');
+        if (video) {
+            volumeLog('waitForAllTileVideos: Tile', index, 'already has video');
+            // Video already exists, no need to wait
+            return;
+        }
+
+        // Need to wait for video to appear
+        pendingTiles++;
+        volumeLog('waitForAllTileVideos: Tile', index, 'waiting for video');
+
+        const observer = new MutationObserver((mutations, obs) => {
+            const video = tile.querySelector('video');
+            if (video) {
+                volumeLog('waitForAllTileVideos: Tile', index, 'video appeared');
+                obs.disconnect();
+                checkComplete();
+            }
+        });
+
+        observer.observe(tile, { childList: true, subtree: true });
+    });
+
+    // If all tiles already have videos, call immediately
+    if (pendingTiles === 0) {
+        volumeLog('waitForAllTileVideos: All tiles already have videos');
+        clearTimeout(timeoutId);
+        callback();
+    }
 }
 
 // Single early volume application at startup - observers handle the rest
