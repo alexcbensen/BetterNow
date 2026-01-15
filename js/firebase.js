@@ -262,7 +262,9 @@ function applyFirebaseSettings() {
     }
 
     // Re-apply chat styles with new settings
-    applyChatStyles();
+    if (typeof applyChatStyles === 'function') {
+        applyChatStyles();
+    }
 
     // Update online indicator style with new settings
     if (typeof initOnlineIndicatorStyle === 'function') {
