@@ -129,6 +129,39 @@ function createBetterNowToolbar() {
     rightSection.className = 'betternow-toolbar__right';
     rightSection.style.cssText = 'display: flex; align-items: center; gap: 12px; flex: 0; justify-content: flex-end;';
 
+    // Add Hide Avatars toggle button (only when broadcasting)
+    if (typeof isBroadcasting === 'function' && isBroadcasting()) {
+        let hideAvatarsEnabled = localStorage.getItem('betternow-hide-avatars') === 'true';
+        const hideAvatarsToggle = document.createElement('button');
+        hideAvatarsToggle.id = 'betternow-hide-avatars-toggle';
+        hideAvatarsToggle.textContent = 'HIDE AVATARS';
+        hideAvatarsToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
+            background: ${hideAvatarsEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+            color: ${hideAvatarsEnabled ? '#000' : 'var(--color-white, #fff)'};
+        `;
+
+        // Apply initial state
+        if (hideAvatarsEnabled) {
+            document.body.classList.add('betternow-hide-avatars');
+        }
+
+        hideAvatarsToggle.onclick = () => {
+            hideAvatarsEnabled = !hideAvatarsEnabled;
+            localStorage.setItem('betternow-hide-avatars', hideAvatarsEnabled.toString());
+
+            if (hideAvatarsEnabled) {
+                document.body.classList.add('betternow-hide-avatars');
+                hideAvatarsToggle.style.background = 'var(--color-primary-green, #08d687)';
+                hideAvatarsToggle.style.color = '#000';
+            } else {
+                document.body.classList.remove('betternow-hide-avatars');
+                hideAvatarsToggle.style.background = 'var(--color-mediumgray, #888)';
+                hideAvatarsToggle.style.color = 'var(--color-white, #fff)';
+            }
+        };
+        leftSection.appendChild(hideAvatarsToggle);
+    }
+
     // Add CSS toggle button to left section for testing
     const cssToggle = document.createElement('button');
     cssToggle.id = 'betternow-css-toggle';
@@ -144,9 +177,11 @@ function createBetterNowToolbar() {
         if (headerCssEnabled) {
             header.style.setProperty('position', 'relative', 'important');
             header.style.setProperty('top', '0', 'important');
+            document.body.classList.remove('betternow-sticky-header');
         } else {
             header.style.setProperty('position', 'sticky', 'important');
             header.style.setProperty('top', 'var(--topbar-height)', 'important');
+            document.body.classList.add('betternow-sticky-header');
         }
         header.style.setProperty('border-bottom', 'none', 'important');
         header.style.setProperty('border-color', 'transparent', 'important');
@@ -163,6 +198,7 @@ function createBetterNowToolbar() {
                 header.style.setProperty('top', '0', 'important');
                 header.style.setProperty('border-bottom', 'none', 'important');
                 header.style.setProperty('border-color', 'transparent', 'important');
+                document.body.classList.remove('betternow-sticky-header');
                 cssToggle.style.background = 'var(--color-mediumgray, #888)';
                 cssToggle.style.color = 'var(--color-white, #fff)';
             } else {
@@ -171,6 +207,7 @@ function createBetterNowToolbar() {
                 header.style.setProperty('top', 'var(--topbar-height)', 'important');
                 header.style.setProperty('border-bottom', 'none', 'important');
                 header.style.setProperty('border-color', 'transparent', 'important');
+                document.body.classList.add('betternow-sticky-header');
                 cssToggle.style.background = 'var(--color-primary-green, #08d687)';
                 cssToggle.style.color = '#000';
             }
