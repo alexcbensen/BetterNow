@@ -7,13 +7,48 @@ function injectHideAdsStyles() {
     const style = document.createElement('style');
     style.id = 'betternow-hide-ads-styles';
     style.textContent = `
-        /* Hide "Sale Day Is Live!" button */
+        /* Hide sale/discount/promo buttons and wrappers */
         .sale-button-wrapper,
-        .button--sale-event {
+        .button--sale-event,
+        .promo-wrapper,
+        [class*="sale-"],
+        [class*="-sale"],
+        [class*="discount"],
+        [class*="promo-"] {
+            display: none !important;
+        }
+        
+        /* Hide sale/discount/bar related Angular components */
+        [class*="sale-bar"],
+        app-sale-bar,
+        app-sale-bar-discount-event-content,
+        [class*="discount-event"] {
             display: none !important;
         }
     `;
     document.head.appendChild(style);
+}
+
+// Also hide elements dynamically in case they're added after styles
+function hidePromoElements() {
+    // Keywords to look for in tag names and class names
+    const keywords = ['sale', 'discount', 'promo'];
+
+    // Find and hide custom elements (Angular components) with these keywords
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+        const tagName = el.tagName.toLowerCase();
+        const className = el.className?.toString?.().toLowerCase() || '';
+
+        for (const keyword of keywords) {
+            if (tagName.includes(keyword) || className.includes(keyword)) {
+                if (el.style.display !== 'none') {
+                    el.style.display = 'none';
+                }
+                break;
+            }
+        }
+    });
 }
 
 function removeHideAdsStyles() {
@@ -29,6 +64,19 @@ function initHideAds() {
     // Check if user has the hideAds feature
     if (typeof userHasFeature === 'function' && userHasFeature('hideAds')) {
         injectHideAdsStyles();
+
+        // Run once immediately
+        hidePromoElements();
+
+        // Set up observer to catch dynamically added promo elements
+        const observer = new MutationObserver(() => {
+            hidePromoElements();
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
     }
 }
 
