@@ -161,10 +161,18 @@ async function renderOnlineUsers(forceRefresh = false) {
         return true;
     });
 
-    // Update count badge (excluding self)
+    // Count only active users (watching a stream OR idle < 15 min)
+    const activeUsers = displayUsers.filter(user => {
+        if (user.stream) return true; // Watching or guesting
+        const now = Date.now();
+        const idleTime = now - (user.lastStreamTime || user.lastSeen);
+        return idleTime < 900000; // Less than 15 minutes idle
+    });
+
+    // Update count badge (only active users, excluding self)
     if (countBadge) {
-        countBadge.textContent = displayUsers.length;
-        activeUsersLog('renderOnlineUsers: Updated count badge to', displayUsers.length);
+        countBadge.textContent = activeUsers.length;
+        activeUsersLog('renderOnlineUsers: Updated count badge to', activeUsers.length, '(active) out of', displayUsers.length, '(total)');
     }
 
     if (users.length === 0) {
@@ -180,8 +188,18 @@ async function renderOnlineUsers(forceRefresh = false) {
         return;
     }
 
-    // Helper: check if user is broadcasting (watching themselves)
-    const isLive = (user) => user.stream && user.stream.toLowerCase() === user.username.toLowerCase();
+    // Helper: calculate idle time for a user
+    const getIdleTime = (user) => Date.now() - (user.lastStreamTime || user.lastSeen);
+
+    // Helper: check if user was active in the last 15 minutes
+    const isRecentlyActive = (user) => getIdleTime(user) < 900000;
+
+    // Helper: check if user is broadcasting (watching themselves AND recently active)
+    const isLive = (user) => {
+        return user.stream &&
+            user.stream.toLowerCase() === user.username.toLowerCase() &&
+            isRecentlyActive(user);
+    };
 
     // Sort users: live broadcasters first, then viewers watching streams, then idle
     const sortedUsers = [...displayUsers].sort((a, b) => {
@@ -190,22 +208,25 @@ async function renderOnlineUsers(forceRefresh = false) {
         // Live broadcasters first
         if (aLive && !bLive) return -1;
         if (!aLive && bLive) return 1;
-        // Then users watching a stream
-        if (a.stream && !b.stream) return -1;
-        if (!a.stream && b.stream) return 1;
+        // Then users actively watching a stream (recently active with stream set)
+        // Note: stream field is only set if broadcaster was live when heartbeat was sent
+        const aWatching = a.stream && isRecentlyActive(a);
+        const bWatching = b.stream && isRecentlyActive(b);
+        if (aWatching && !bWatching) return -1;
+        if (!aWatching && bWatching) return 1;
         return 0;
     });
 
     // Render user list
     container.innerHTML = sortedUsers.map(user => {
-        const userIsLive = isLive(user);
-        const now = Date.now();
-        const idleTime = now - (user.lastStreamTime || user.lastSeen);
+        const idleTime = getIdleTime(user);
+        const recentlyActive = isRecentlyActive(user);
 
         // Show "LIVE" badge if broadcasting, otherwise show stream info or idle status
+        // Note: stream field is only populated if broadcaster was live at heartbeat time
         let streamHtml = '';
-        if (userIsLive) {
-            streamHtml = `<span style="
+        if (isLive(user)) {
+            streamHtml = `<a href="/${user.username}" target="_blank" style="
                 display: inline-block;
                 width: 36px;
                 text-align: center;
@@ -217,8 +238,11 @@ async function renderOnlineUsers(forceRefresh = false) {
                 font-weight: 600;
                 letter-spacing: 0.1em;
                 padding: 3px 0 2px 0;
-            ">Live</span>`;
-        } else if (user.stream) {
+                text-decoration: none;
+                cursor: pointer;
+            ">Live</a>`;
+        } else if (user.stream && recentlyActive) {
+            // Show "watching/guesting" - stream was verified live at heartbeat time
             const action = user.isGuesting ? 'guesting' : 'watching';
             streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
         } else if (idleTime >= 3600000) {
@@ -301,15 +325,22 @@ async function setupOnlineUsersSection() {
     try {
         const users = await updateOnlineBetterNowUsers();
         if (countBadge) {
-            // Filter out current user for display count
-            const displayCount = users.filter(u => {
+            // Filter out current user for display
+            const displayUsers = users.filter(u => {
                 if (typeof currentUserId !== 'undefined' && currentUserId) {
                     return String(u.odiskd) !== String(currentUserId);
                 }
                 return true;
+            });
+            // Count only active users (watching a stream OR idle < 15 min)
+            const activeCount = displayUsers.filter(user => {
+                if (user.stream) return true;
+                const now = Date.now();
+                const idleTime = now - (user.lastStreamTime || user.lastSeen);
+                return idleTime < 900000;
             }).length;
-            countBadge.textContent = displayCount;
-            activeUsersLog('setupOnlineUsersSection: Updated count badge to', displayCount, '(filtered from', users.length, ')');
+            countBadge.textContent = activeCount;
+            activeUsersLog('setupOnlineUsersSection: Updated count badge to', activeCount, '(active) from', users.length, '(total)');
         }
     } catch (e) {
         console.error('[BetterNow ActiveUsers] setupOnlineUsersSection: Failed to fetch count:', e);
