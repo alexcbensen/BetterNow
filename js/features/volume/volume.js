@@ -101,6 +101,13 @@ function isLiveStream() {
     return hasAppChannel && hasOnlineClass && hasFullscreenWrapper && hasVideoTiles;
 }
 
+// Check if current user is broadcasting (red END button visible)
+// When broadcasting, we should NOT apply volume controls to avoid echo
+function isBroadcasting() {
+    const endButton = document.querySelector('.button--red');
+    return endButton !== null && endButton.textContent.trim().toUpperCase() === 'END';
+}
+
 // Store volume states per video (keyed by username in toolbar)
 // Load from localStorage or initialize empty
 let guestVolumeStates;
@@ -460,6 +467,9 @@ function applyGlobalMultiplier(multiplier) {
 function applyEarlyVolumes() {
     // Skip if volume sliders already created (initVolumeControls already ran)
     if (document.querySelector('.betternow-volume-slider')) return;
+
+    // Skip if user is broadcasting (prevents echo)
+    if (isBroadcasting()) return;
 
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
     if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
@@ -935,6 +945,13 @@ let volumeInitialized = false;
 
 function initVolumeControls() {
     volumeLog('initVolumeControls() called');
+
+    // Skip volume controls entirely if user is broadcasting (prevents echo)
+    if (isBroadcasting()) {
+        volumeLog('User is broadcasting, skipping volume controls to prevent echo');
+        return;
+    }
+
     setupVolumeObserver();
     setupGuestChangeObserver();
     createVolumeSliders();
