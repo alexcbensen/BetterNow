@@ -1,7 +1,7 @@
 // ============ Grid View ============
 // Toggle grid layout for multiple video streams
 
-const GRID_DEBUG = false; // Set to false before release
+const GRID_DEBUG = true; // Set to false before release
 
 function gridLog(...args) {
     if (GRID_DEBUG) {
@@ -49,6 +49,13 @@ function applyGridView() {
     // Skip if state hasn't changed
     if (shouldBeActive === isActive) return;
 
+    // Don't remove the class if we're still waiting for videos to load
+    // This preserves the early activation until we know the actual video count
+    if (enabled && videoCount === 0 && isActive) {
+        gridLog('applyGridView - waiting for videos, keeping class');
+        return;
+    }
+
     gridLog('applyGridView - enabled:', enabled, 'videoCount:', videoCount);
 
     if (shouldBeActive) {
@@ -82,3 +89,14 @@ function fixVideoFit() {
         }
     });
 }
+
+// ============ Early Grid Activation ============
+// Apply grid view class immediately on script load, before waiting for user detection.
+// This eliminates the delay when joining a stream with grid view enabled.
+// The CSS will apply as soon as videos render - no need to wait for currentUserId.
+(function initGridViewEarly() {
+    if (isGridViewEnabled()) {
+        document.body.classList.add('betternow-grid-active');
+        gridLog('Early grid activation applied');
+    }
+})();
