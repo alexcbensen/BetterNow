@@ -472,11 +472,6 @@ function createMissionsAutoClaimButton() {
         return;
     }
 
-    // Check if user has access to autoMissions feature
-    if (typeof userHasFeature === 'function' && !userHasFeature('autoMissions')) {
-        return;
-    }
-
     const toolbar = document.getElementById('betternow-toolbar');
     if (!toolbar) return;
 
