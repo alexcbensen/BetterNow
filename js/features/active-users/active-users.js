@@ -245,7 +245,7 @@ async function renderOnlineUsers(forceRefresh = false) {
         // Show "LIVE" badge if broadcasting, otherwise show stream info or idle status
         let streamHtml = '';
         if (isLive(user)) {
-            streamHtml = `<a href="/${user.username}" target="_blank" style="
+            streamHtml = `<a href="/${user.username}" style="
                 display: inline-block;
                 width: 36px;
                 text-align: center;
@@ -263,7 +263,7 @@ async function renderOnlineUsers(forceRefresh = false) {
         } else if (shouldShowWatching(user)) {
             // Show "watching/guesting" - broadcaster is verified live
             const action = user.isGuesting ? 'guesting' : 'watching';
-            streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
+            streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
         } else if (idleTime >= 3600000) {
             // Idle 1+ hour - "idle for Xh"
             const hours = Math.floor(idleTime / 3600000);
