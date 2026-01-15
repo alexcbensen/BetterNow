@@ -929,6 +929,14 @@ function renderFriendUsernames() {
         const chestKilled = typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled;
         const missionsKilled = typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled;
 
+        // Check if features are globally enabled (kill switch ON = available to all)
+        const chestGloballyEnabled = typeof globalAutoChestEnabled === 'undefined' || globalAutoChestEnabled;
+        const missionsGloballyEnabled = typeof globalAutoMissionsEnabled === 'undefined' || globalAutoMissionsEnabled;
+
+        // Effective feature state: has access if admin, explicitly granted, OR globally enabled
+        const effectiveAutoChest = isAdmin || hasAutoChest || chestGloballyEnabled;
+        const effectiveAutoMissions = isAdmin || hasAutoMissions || missionsGloballyEnabled;
+
         return `
         <div style="
             display: flex;
@@ -1056,20 +1064,20 @@ function renderFriendUsernames() {
                         <label for="feature-autoChest-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Chest</label>
                         ${chestKilled ? '<span style="background: #ef4444; color: white; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 600;">KILLED</span>' : ''}
                     </div>
-                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin ? '0.5' : '1'};">
-                        <input type="checkbox" id="feature-autoChest-${odiskd}" ${hasAutoChest || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin || chestGloballyEnabled ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin || chestGloballyEnabled ? '0.5' : '1'};">
+                        <input type="checkbox" id="feature-autoChest-${odiskd}" ${effectiveAutoChest ? 'checked' : ''} ${isAdmin || chestGloballyEnabled ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
                         <span class="feature-slider" data-for="feature-autoChest-${odiskd}" style="
                             position: absolute;
-                            cursor: ${isAdmin ? 'not-allowed' : 'pointer'};
+                            cursor: ${isAdmin || chestGloballyEnabled ? 'not-allowed' : 'pointer'};
                             top: 0; left: 0; right: 0; bottom: 0;
-                            background-color: ${hasAutoChest || isAdmin ? '#22c55e' : '#555'};
+                            background-color: ${effectiveAutoChest ? '#22c55e' : '#555'};
                             transition: .3s;
                             border-radius: 22px;
                         "></span>
                         <span class="feature-dot" data-for="feature-autoChest-${odiskd}" style="
                             position: absolute;
                             height: 16px; width: 16px;
-                            left: ${hasAutoChest || isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            left: ${effectiveAutoChest ? '21px' : '3px'}; bottom: 3px;
                             background-color: white;
                             transition: .3s;
                             border-radius: 50%;
@@ -1083,20 +1091,20 @@ function renderFriendUsernames() {
                         <label for="feature-autoMissions-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Missions</label>
                         ${missionsKilled ? '<span style="background: #ef4444; color: white; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 600;">KILLED</span>' : ''}
                     </div>
-                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin ? '0.5' : '1'};">
-                        <input type="checkbox" id="feature-autoMissions-${odiskd}" ${hasAutoMissions || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin || missionsGloballyEnabled ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin || missionsGloballyEnabled ? '0.5' : '1'};">
+                        <input type="checkbox" id="feature-autoMissions-${odiskd}" ${effectiveAutoMissions ? 'checked' : ''} ${isAdmin || missionsGloballyEnabled ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
                         <span class="feature-slider" data-for="feature-autoMissions-${odiskd}" style="
                             position: absolute;
-                            cursor: ${isAdmin ? 'not-allowed' : 'pointer'};
+                            cursor: ${isAdmin || missionsGloballyEnabled ? 'not-allowed' : 'pointer'};
                             top: 0; left: 0; right: 0; bottom: 0;
-                            background-color: ${hasAutoMissions || isAdmin ? '#22c55e' : '#555'};
+                            background-color: ${effectiveAutoMissions ? '#22c55e' : '#555'};
                             transition: .3s;
                             border-radius: 22px;
                         "></span>
                         <span class="feature-dot" data-for="feature-autoMissions-${odiskd}" style="
                             position: absolute;
                             height: 16px; width: 16px;
-                            left: ${hasAutoMissions || isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            left: ${effectiveAutoMissions ? '21px' : '3px'}; bottom: 3px;
                             background-color: white;
                             transition: .3s;
                             border-radius: 50%;
