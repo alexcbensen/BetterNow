@@ -174,22 +174,30 @@ async function updatePresence(force = false) {
             }
         );
 
+        // Signal that presence system is ready (even if write fails, reads can still work)
+        if (!window.presenceReady) {
+            window.presenceReady = true;
+            presenceLog('updatePresence: presenceReady flag set to true');
+        }
+
         if (response.ok) {
             lastPresenceUpdate = now;
             lastPresenceStream = streamInfo.stream;
             presenceLog('updatePresence: SUCCESS - response status:', response.status);
-
-            // Signal that presence is ready (first successful write)
-            if (!window.presenceReady) {
-                window.presenceReady = true;
-                presenceLog('updatePresence: presenceReady flag set to true');
-            }
         } else {
             const errorText = await response.text();
             presenceWarn('updatePresence: FAILED - status:', response.status, 'body:', errorText);
         }
     } catch (e) {
-        presenceError('updatePresence: ERROR:', e);
+        // Still mark presence as ready - reads can work even if writes fail
+        if (!window.presenceReady) {
+            window.presenceReady = true;
+            presenceLog('updatePresence: presenceReady flag set to true (despite error)');
+        }
+        // Don't log network errors (expected when offline/throttled)
+        if (e.message !== 'Failed to fetch') {
+            presenceError('updatePresence: ERROR:', e);
+        }
     }
 }
 
