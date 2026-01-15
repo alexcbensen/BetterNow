@@ -912,6 +912,11 @@ function renderFriendUsernames() {
         const hasAutoMissions = features.includes('autoMissions');
         const hasHideAds = features.includes('hideAds');
         const isAdmin = ADMIN_ONLY_USER_IDS.includes(odiskd) || ADMIN_ONLY_USER_IDS.includes(String(odiskd));
+
+        // Check kill switch states for indicators
+        const chestKilled = typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled;
+        const missionsKilled = typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled;
+
         return `
         <div style="
             display: flex;
@@ -980,29 +985,137 @@ function renderFriendUsernames() {
             margin-bottom: 8px;
             margin-top: -4px;
         ">
-            <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
                 <p style="color: #888; font-size: 11px; margin: 0;">Grant features to ${username}:</p>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="feature-admin-${odiskd}" ${isAdmin ? 'checked' : ''} style="cursor: pointer;" />
+                
+                <!-- Admin toggle -->
+                <div style="display: flex; align-items: center; justify-content: space-between;">
                     <label for="feature-admin-${odiskd}" style="color: #f59e0b; font-size: 13px; cursor: pointer; font-weight: 600;">👑 Admin (all features)</label>
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: pointer;">
+                        <input type="checkbox" id="feature-admin-${odiskd}" ${isAdmin ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                        <span class="feature-slider" data-for="feature-admin-${odiskd}" style="
+                            position: absolute;
+                            cursor: pointer;
+                            top: 0; left: 0; right: 0; bottom: 0;
+                            background-color: ${isAdmin ? '#22c55e' : '#555'};
+                            transition: .3s;
+                            border-radius: 22px;
+                        "></span>
+                        <span class="feature-dot" data-for="feature-admin-${odiskd}" style="
+                            position: absolute;
+                            height: 16px; width: 16px;
+                            left: ${isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            background-color: white;
+                            transition: .3s;
+                            border-radius: 50%;
+                        "></span>
+                    </label>
                 </div>
-                <hr style="border: none; border-top: 1px solid #444; margin: 4px 0;" />
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="feature-filterBypass-${odiskd}" ${hasFilterBypass || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
+                
+                <hr style="border: none; border-top: 1px solid #444; margin: 0;" />
+                
+                <!-- Filter Bypass -->
+                <div style="display: flex; align-items: center; justify-content: space-between;">
                     <label for="feature-filterBypass-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Filter Bypass</label>
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin ? '0.5' : '1'};">
+                        <input type="checkbox" id="feature-filterBypass-${odiskd}" ${hasFilterBypass || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
+                        <span class="feature-slider" data-for="feature-filterBypass-${odiskd}" style="
+                            position: absolute;
+                            cursor: ${isAdmin ? 'not-allowed' : 'pointer'};
+                            top: 0; left: 0; right: 0; bottom: 0;
+                            background-color: ${hasFilterBypass || isAdmin ? '#22c55e' : '#555'};
+                            transition: .3s;
+                            border-radius: 22px;
+                        "></span>
+                        <span class="feature-dot" data-for="feature-filterBypass-${odiskd}" style="
+                            position: absolute;
+                            height: 16px; width: 16px;
+                            left: ${hasFilterBypass || isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            background-color: white;
+                            transition: .3s;
+                            border-radius: 50%;
+                        "></span>
+                    </label>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="feature-autoChest-${odiskd}" ${hasAutoChest || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
-                    <label for="feature-autoChest-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Chest</label>
+                
+                <!-- Auto Chest -->
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <label for="feature-autoChest-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Chest</label>
+                        ${chestKilled ? '<span style="background: #ef4444; color: white; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 600;">KILLED</span>' : ''}
+                    </div>
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin ? '0.5' : '1'};">
+                        <input type="checkbox" id="feature-autoChest-${odiskd}" ${hasAutoChest || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
+                        <span class="feature-slider" data-for="feature-autoChest-${odiskd}" style="
+                            position: absolute;
+                            cursor: ${isAdmin ? 'not-allowed' : 'pointer'};
+                            top: 0; left: 0; right: 0; bottom: 0;
+                            background-color: ${hasAutoChest || isAdmin ? '#22c55e' : '#555'};
+                            transition: .3s;
+                            border-radius: 22px;
+                        "></span>
+                        <span class="feature-dot" data-for="feature-autoChest-${odiskd}" style="
+                            position: absolute;
+                            height: 16px; width: 16px;
+                            left: ${hasAutoChest || isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            background-color: white;
+                            transition: .3s;
+                            border-radius: 50%;
+                        "></span>
+                    </label>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="feature-autoMissions-${odiskd}" ${hasAutoMissions || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
-                    <label for="feature-autoMissions-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Missions</label>
+                
+                <!-- Auto Missions -->
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <label for="feature-autoMissions-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Auto Missions</label>
+                        ${missionsKilled ? '<span style="background: #ef4444; color: white; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 600;">KILLED</span>' : ''}
+                    </div>
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin ? '0.5' : '1'};">
+                        <input type="checkbox" id="feature-autoMissions-${odiskd}" ${hasAutoMissions || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
+                        <span class="feature-slider" data-for="feature-autoMissions-${odiskd}" style="
+                            position: absolute;
+                            cursor: ${isAdmin ? 'not-allowed' : 'pointer'};
+                            top: 0; left: 0; right: 0; bottom: 0;
+                            background-color: ${hasAutoMissions || isAdmin ? '#22c55e' : '#555'};
+                            transition: .3s;
+                            border-radius: 22px;
+                        "></span>
+                        <span class="feature-dot" data-for="feature-autoMissions-${odiskd}" style="
+                            position: absolute;
+                            height: 16px; width: 16px;
+                            left: ${hasAutoMissions || isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            background-color: white;
+                            transition: .3s;
+                            border-radius: 50%;
+                        "></span>
+                    </label>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="feature-hideAds-${odiskd}" ${hasHideAds || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="cursor: pointer;" />
+                
+                <!-- Hide Ads -->
+                <div style="display: flex; align-items: center; justify-content: space-between;">
                     <label for="feature-hideAds-${odiskd}" style="color: #ccc; font-size: 13px; cursor: pointer;">Hide Ads</label>
+                    <label style="position: relative; display: inline-block; width: 40px; height: 22px; cursor: ${isAdmin ? 'not-allowed' : 'pointer'}; opacity: ${isAdmin ? '0.5' : '1'};">
+                        <input type="checkbox" id="feature-hideAds-${odiskd}" ${hasHideAds || isAdmin ? 'checked' : ''} ${isAdmin ? 'disabled' : ''} style="opacity: 0; width: 0; height: 0;">
+                        <span class="feature-slider" data-for="feature-hideAds-${odiskd}" style="
+                            position: absolute;
+                            cursor: ${isAdmin ? 'not-allowed' : 'pointer'};
+                            top: 0; left: 0; right: 0; bottom: 0;
+                            background-color: ${hasHideAds || isAdmin ? '#22c55e' : '#555'};
+                            transition: .3s;
+                            border-radius: 22px;
+                        "></span>
+                        <span class="feature-dot" data-for="feature-hideAds-${odiskd}" style="
+                            position: absolute;
+                            height: 16px; width: 16px;
+                            left: ${hasHideAds || isAdmin ? '21px' : '3px'}; bottom: 3px;
+                            background-color: white;
+                            transition: .3s;
+                            border-radius: 50%;
+                        "></span>
+                    </label>
                 </div>
+                
                 <button data-save-features="${odiskd}" style="
                     background: #22c55e;
                     border: none;
@@ -1012,6 +1125,7 @@ function renderFriendUsernames() {
                     font-size: 12px;
                     cursor: pointer;
                     align-self: flex-end;
+                    margin-top: 4px;
                 ">Save Features</button>
             </div>
         </div>
@@ -1210,6 +1324,38 @@ function renderFriendUsernames() {
         });
     });
 
+    // Helper to update feature toggle slider visuals
+    const updateFeatureSliderVisual = (checkbox) => {
+        const checkboxId = checkbox.id;
+        const slider = container.querySelector(`.feature-slider[data-for="${checkboxId}"]`);
+        const dot = container.querySelector(`.feature-dot[data-for="${checkboxId}"]`);
+        if (slider && dot) {
+            if (checkbox.checked) {
+                slider.style.backgroundColor = '#22c55e';
+                dot.style.left = '21px';
+            } else {
+                slider.style.backgroundColor = '#555';
+                dot.style.left = '3px';
+            }
+            // Update opacity/cursor based on disabled state
+            const label = slider.closest('label');
+            if (label) {
+                label.style.opacity = checkbox.disabled ? '0.5' : '1';
+                label.style.cursor = checkbox.disabled ? 'not-allowed' : 'pointer';
+                slider.style.cursor = checkbox.disabled ? 'not-allowed' : 'pointer';
+            }
+        }
+    };
+
+    // Add click handlers for all feature checkboxes to update slider visuals
+    container.querySelectorAll('[id^="feature-"]').forEach(checkbox => {
+        if (checkbox.type === 'checkbox') {
+            checkbox.addEventListener('change', () => {
+                updateFeatureSliderVisual(checkbox);
+            });
+        }
+    });
+
     // Add change handlers for admin checkboxes (auto-check/disable other features)
     container.querySelectorAll('[id^="feature-admin-"]').forEach(adminCheckbox => {
         adminCheckbox.addEventListener('change', () => {
@@ -1224,32 +1370,40 @@ function renderFriendUsernames() {
                 if (filterBypassCheckbox) {
                     filterBypassCheckbox.checked = true;
                     filterBypassCheckbox.disabled = true;
+                    updateFeatureSliderVisual(filterBypassCheckbox);
                 }
                 if (autoChestCheckbox) {
                     autoChestCheckbox.checked = true;
                     autoChestCheckbox.disabled = true;
+                    updateFeatureSliderVisual(autoChestCheckbox);
                 }
                 if (autoMissionsCheckbox) {
                     autoMissionsCheckbox.checked = true;
                     autoMissionsCheckbox.disabled = true;
+                    updateFeatureSliderVisual(autoMissionsCheckbox);
                 }
                 if (hideAdsCheckbox) {
                     hideAdsCheckbox.checked = true;
                     hideAdsCheckbox.disabled = true;
+                    updateFeatureSliderVisual(hideAdsCheckbox);
                 }
             } else {
                 // Admin unchecked - enable feature checkboxes (keep their checked state)
                 if (filterBypassCheckbox) {
                     filterBypassCheckbox.disabled = false;
+                    updateFeatureSliderVisual(filterBypassCheckbox);
                 }
                 if (autoChestCheckbox) {
                     autoChestCheckbox.disabled = false;
+                    updateFeatureSliderVisual(autoChestCheckbox);
                 }
                 if (autoMissionsCheckbox) {
                     autoMissionsCheckbox.disabled = false;
+                    updateFeatureSliderVisual(autoMissionsCheckbox);
                 }
                 if (hideAdsCheckbox) {
                     hideAdsCheckbox.disabled = false;
+                    updateFeatureSliderVisual(hideAdsCheckbox);
                 }
             }
         });
