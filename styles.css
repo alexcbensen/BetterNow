@@ -2,6 +2,11 @@ app-chat .user-card__body {
     color: white !important;
 }
 
+/* Hide avatar selector when toggled */
+.betternow-hide-avatars app-select-avatar {
+    display: none !important;
+}
+
 
 /* REMOVED: Carousel hiding moved to explore.js for blocked user support */
 /* The rule was:
@@ -21,15 +26,26 @@ app-channel .header {
 /* NOTE: Using 'betternow-grid-active' to avoid conflict with YouNow's 'grid-view-enabled' */
 .betternow-grid-active app-channel .video-player {
     height: auto !important;
+    width: 100% !important;
 }
 
 .betternow-grid-active app-channel .fullscreen-wrapper {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 4px !important;
-    width: 100% !important;
     height: auto !important;
     align-content: flex-start !important;
+    /* Scale grid proportionally to fill viewport */
+    /* 2 rows of 16:9 tiles = width * 0.5625 height */
+    /* Subtract 2rem for gap and breathing room */
+    max-width: min(100%, calc((100vh - 2rem) / 0.5625)) !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+}
+
+/* When sticky header is ON, account for header height (7rem = topbar + header) + 2rem breathing room */
+.betternow-sticky-header.betternow-grid-active app-channel .fullscreen-wrapper {
+    max-width: min(100%, calc((100vh - 9rem) / 0.5625)) !important;
 }
 
 /* Fullscreen grid view - center content vertically */
@@ -40,16 +56,18 @@ app-channel .header {
     justify-content: center !important;
 }
 
-/* All videos: 2 columns, auto rows */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video {
+/* All videos and placeholder: 2 columns, auto rows */
+/* Must override YouNow's inline width/height/left/top styles */
+.betternow-grid-active app-channel .fullscreen-wrapper > .video,
+.betternow-grid-active app-channel .fullscreen-wrapper > .video.video--placeholder {
     position: relative !important;
     flex: 0 0 calc(50% - 2px) !important;
     max-width: calc(50% - 2px) !important;
+    width: calc(50% - 2px) !important;
     height: auto !important;
     aspect-ratio: 16/9 !important;
     left: unset !important;
     top: unset !important;
-    width: unset !important;
 }
 
 /* 1 video: full width */
