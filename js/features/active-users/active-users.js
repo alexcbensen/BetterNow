@@ -238,6 +238,13 @@ async function renderOnlineUsers(forceRefresh = false) {
         return 0;
     });
 
+    // Helper: check if we should show the right-side timestamp
+    // Only show for users we're actively monitoring (live, watching, or recently active)
+    // For idle users beyond threshold, "idle for Xh" on left already tells the story
+    const shouldShowTimestamp = (user) => {
+        return isLive(user) || shouldShowWatching(user) || isRecentlyActive(user);
+    };
+
     // Render user list
     container.innerHTML = sortedUsers.map(user => {
         const idleTime = getIdleTime(user);
@@ -277,7 +284,10 @@ async function renderOnlineUsers(forceRefresh = false) {
             streamHtml = `<span style="color: #888; font-size: 12px;">online</span>`;
         }
 
-        const timeAgo = getTimeAgo(user.lastSeen);
+        // Only show timestamp for users we're actively monitoring
+        const timeAgoHtml = shouldShowTimestamp(user)
+            ? `<span style="color: #888; font-size: 11px;">${getTimeAgo(user.lastSeen)}</span>`
+            : '';
 
         return `
             <div style="
@@ -313,7 +323,7 @@ async function renderOnlineUsers(forceRefresh = false) {
                         ${streamHtml}
                     </div>
                 </div>
-                <span style="color: #fff; font-size: 11px;">${timeAgo}</span>
+                ${timeAgoHtml}
             </div>
         `;
     }).join('');
