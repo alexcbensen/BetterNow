@@ -2,7 +2,7 @@
 // Individual guest volume sliders and global volume multiplier
 
 // Debug logging - set to true for verbose output
-const VOLUME_DEBUG = false;
+const VOLUME_DEBUG = true;
 
 // Timeout for checking if page is a live stream (ms)
 const LIVE_STREAM_CHECK_TIMEOUT = 1000;
@@ -388,79 +388,11 @@ function applyGlobalMultiplier(multiplier) {
         multiplier = 100;
     }
 
-    // Also apply to main broadcaster video (in case it's separate from guest tiles)
-    const broadcasterVideo = document.querySelector('.video-player video');
-    if (broadcasterVideo) {
-        // Get saved per-broadcaster volume (same keys as broadcaster mode)
-        const broadcasterUsername = getCurrentBroadcasterUsername();
-        const volumeKey = broadcasterUsername
-            ? `betternow-broadcaster-volume-${broadcasterUsername}`
-            : null;
+    // Save multiplier to localStorage so reapplyAllVolumes can use it
+    localStorage.setItem('betternow-global-guest-multiplier', multiplier.toString());
 
-        // Load saved volume or default to 100
-        let savedBroadcasterVol = 100;
-        if (volumeKey) {
-            const saved = localStorage.getItem(volumeKey);
-            if (saved !== null) {
-                savedBroadcasterVol = parseInt(saved);
-            }
-        }
-
-        // Apply multiplier to saved broadcaster volume
-        const effectiveVolume = (savedBroadcasterVol * multiplier) / 100;
-        const effectiveVolumeNormalized = effectiveVolume / 100;
-        const shouldMute = effectiveVolume === 0;
-
-        // Store intended volume
-        intendedGuestVolumes.set(broadcasterVideo, { volume: effectiveVolumeNormalized, muted: shouldMute });
-
-        // Apply with protection
-        setVideoVolume(broadcasterVideo, effectiveVolumeNormalized, shouldMute);
-
-        // Protect from external changes
-        protectVideoVolume(
-            broadcasterVideo,
-            () => intendedGuestVolumes.get(broadcasterVideo)?.volume ?? null,
-            () => intendedGuestVolumes.get(broadcasterVideo)?.muted ?? false,
-            'broadcaster-main'
-        );
-    }
-
-    const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
-
-    videoTiles.forEach((tile, index) => {
-        const videoElements = tile.querySelectorAll('video');
-        const username = getGuestUsername(tile);
-
-        if (videoElements.length === 0 || !username) return;
-
-        // Get the individual saved volume (base volume)
-        const baseVolume = guestVolumeStates.has(username) ? guestVolumeStates.get(username) : 100;
-
-        // Apply multiplier to base volume
-        const effectiveVolume = (baseVolume * multiplier) / 100;
-        const effectiveVolumeNormalized = effectiveVolume / 100;
-        const shouldMute = effectiveVolume === 0;
-
-        volumeLog('applyGlobalMultiplier: Tile', index, '- User:', username, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
-
-        // Apply to ALL videos in this tile with protection
-        videoElements.forEach((v, vIndex) => {
-            // Store intended volume for this video
-            intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
-
-            // Apply with protection flag
-            setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
-
-            // Add protection listener if not already protected
-            protectVideoVolume(
-                v,
-                () => intendedGuestVolumes.get(v)?.volume ?? null,
-                () => intendedGuestVolumes.get(v)?.muted ?? false,
-                `guest-${username}-video${vIndex}`
-            );
-        });
-    });
+    // Apply to all videos (broadcaster + guests)
+    reapplyAllVolumes();
 }
 
 // Apply saved volumes to videos as early as possible
@@ -585,13 +517,17 @@ function setupGuestChangeObserver() {
                     [...currentUsernames].join(', ') || '(none)');
                 lastGuestUsernames = currentUsernames;
 
-                // Reapply volumes after a short delay to let DOM settle
+                // Reapply volumes after a delay to let DOM and video elements fully load
                 setTimeout(() => {
                     volumeLog('guestChangeObserver: Reapplying volumes after guest change');
-                    reapplyAllGuestVolumes();
+
+                    // Apply volumes to all videos (broadcaster + guests)
+                    reapplyAllVolumes();
+
+                    // Create/update volume sliders for new guests
                     createVolumeSliders();
                     updateVolumeSliderVisibility();
-                }, 100);
+                }, 500);
             }
         }
     });
@@ -833,7 +769,7 @@ function setupVolumeObserver() {
                 const target = mutation.target;
                 if (target.classList.contains('toolbar--overlay-container')) {
                     // Selection changed - reapply volumes to ALL tiles and update visibility
-                    reapplyAllGuestVolumes();
+                    reapplyAllVolumes();
                     updateVolumeSliderVisibility();
                 }
             }
@@ -847,23 +783,88 @@ function setupVolumeObserver() {
     });
 }
 
-function reapplyAllGuestVolumes() {
+function reapplyAllVolumes() {
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
     if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
 
+    volumeLog('reapplyAllVolumes: Starting with globalMultiplier:', globalMultiplier);
+
+    // Handle broadcaster video (only if user is NOT the broadcaster)
+    const userIsBroadcasting = typeof isBroadcasting === 'function' && isBroadcasting();
+    volumeLog('reapplyAllVolumes: userIsBroadcasting:', userIsBroadcasting);
+
+    if (!userIsBroadcasting) {
+        const broadcasterVideo = document.querySelector('.video-player video');
+        volumeLog('reapplyAllVolumes: broadcasterVideo found:', !!broadcasterVideo);
+
+        if (broadcasterVideo) {
+            const broadcasterUsername = getCurrentBroadcasterUsername();
+            volumeLog('reapplyAllVolumes: broadcasterUsername:', broadcasterUsername);
+
+            const volumeKey = broadcasterUsername
+                ? `betternow-broadcaster-volume-${broadcasterUsername}`
+                : null;
+
+            // Load saved volume or default to 100
+            let savedBroadcasterVol = 100;
+            if (volumeKey) {
+                const saved = localStorage.getItem(volumeKey);
+                if (saved !== null) {
+                    savedBroadcasterVol = parseInt(saved);
+                }
+            }
+
+            // Apply multiplier to saved broadcaster volume
+            const effectiveVolume = (savedBroadcasterVol * globalMultiplier) / 100;
+            const effectiveVolumeNormalized = effectiveVolume / 100;
+            const shouldMute = effectiveVolume === 0;
+
+            volumeLog('reapplyAllVolumes: Broadcaster -',
+                'savedVol:', savedBroadcasterVol,
+                '| effectiveVol:', effectiveVolume,
+                '| muted:', shouldMute);
+
+            // Store intended volume
+            intendedGuestVolumes.set(broadcasterVideo, { volume: effectiveVolumeNormalized, muted: shouldMute });
+
+            // Apply with protection
+            setVideoVolume(broadcasterVideo, effectiveVolumeNormalized, shouldMute);
+
+            // Protect from external changes
+            protectVideoVolume(
+                broadcasterVideo,
+                () => intendedGuestVolumes.get(broadcasterVideo)?.volume ?? null,
+                () => intendedGuestVolumes.get(broadcasterVideo)?.muted ?? false,
+                'broadcaster-main'
+            );
+        }
+    }
+
+    // Handle guest tiles
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    volumeLog('reapplyAllVolumes: Found', videoTiles.length, 'guest tiles');
+
     if (videoTiles.length === 0) return;
 
-    videoTiles.forEach((tile) => {
+    videoTiles.forEach((tile, tileIndex) => {
         const username = getGuestUsername(tile);
         const videoElements = tile.querySelectorAll('video');
         const slider = tile.querySelector('.betternow-volume-slider .slider');
         const volumeIcon = tile.querySelector('.betternow-volume-slider .volume__icon i');
 
-        if (videoElements.length === 0 || !username) return;
+        volumeLog('reapplyAllVolumes: Tile', tileIndex,
+            '- username:', username,
+            '| videos:', videoElements.length,
+            '| hasSlider:', !!slider);
+
+        if (videoElements.length === 0 || !username) {
+            volumeLog('reapplyAllVolumes: Skipping tile', tileIndex, '- no videos or username');
+            return;
+        }
 
         // Skip the user's own tile (shows "You") to prevent echo
         if (username === 'You') {
+            volumeLog('reapplyAllVolumes: Tile', tileIndex, 'is user\'s own tile, muting');
             videoElements.forEach(v => {
                 intendedGuestVolumes.set(v, { volume: 0, muted: true });
                 setVideoVolume(v, 0, true);
@@ -880,6 +881,11 @@ function reapplyAllGuestVolumes() {
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
         const effectiveVolumeNormalized = effectiveVolume / 100;
         const shouldMute = effectiveVolume === 0;
+
+        volumeLog('reapplyAllVolumes: Tile', tileIndex, '- User:', username,
+            '| baseVolume:', baseVolume,
+            '| effectiveVolume:', effectiveVolume,
+            '| muted:', shouldMute);
 
         videoElements.forEach((v, vIndex) => {
             intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
