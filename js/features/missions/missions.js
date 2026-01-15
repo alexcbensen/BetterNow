@@ -2,7 +2,7 @@
 // Automatically claims completed daily missions via API
 // Uses TRPX_DEVICE_ID and REQUEST_BY from localStorage (set by YouNow for logged-in users)
 
-const MISSIONS_DEBUG = false;
+const MISSIONS_DEBUG = true;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
@@ -411,6 +411,18 @@ function setupMissionsObserver() {
                         }, 100);
                     }
 
+                    // Check for missions badge appearing (indicates claimable missions)
+                    if (node.matches?.('.topbar-button-badge') ||
+                        node.querySelector?.('.topbar-button-badge')) {
+
+                        // Verify it's on the missions button
+                        const missionsBadge = document.querySelector('app-button-daily-missions .topbar-button-badge');
+                        if (missionsBadge) {
+                            missionsLog('Missions badge detected! Triggering auto-claim...');
+                            setTimeout(autoClaimMissions, 500);
+                        }
+                    }
+
                     // Check for missions dashboard opening - add click listeners to claim buttons
                     if (node.matches?.('popover-container.popover--daily-missions-dashboard') ||
                         node.querySelector?.('popover-container.popover--daily-missions-dashboard')) {
@@ -428,7 +440,7 @@ function setupMissionsObserver() {
         subtree: true
     });
 
-    missionsLog('Observer started - watching for Mission Complete popups and dashboard');
+    missionsLog('Observer started - watching for Mission Complete popups, badge, and dashboard');
 }
 
 // Set up click listeners on claim buttons in the missions dashboard
