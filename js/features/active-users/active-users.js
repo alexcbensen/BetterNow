@@ -217,7 +217,8 @@ async function renderOnlineUsers(forceRefresh = false) {
                 padding: 3px 0 2px 0;
             ">Live</span>`;
         } else if (user.stream) {
-            streamHtml = `<span style="color: #888; font-size: 12px;">watching </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
+            const action = user.isGuesting ? 'guesting' : 'watching';
+            streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
         } else {
             streamHtml = `<span style="color: #888; font-size: 12px;">online</span>`;
         }
