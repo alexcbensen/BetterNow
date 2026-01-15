@@ -3,9 +3,19 @@
 // Uses a single Firebase document for efficient reads
 
 const PRESENCE_DEBUG = false; // SET TO FALSE FOR PRODUCTION
-const PRESENCE_HEARTBEAT_MS = 300000; // 5 minutes
-const PRESENCE_STALE_MS = 600000; // 10 minutes = considered offline
-const PRESENCE_MIN_UPDATE_INTERVAL_MS = 120000; // Don't update more than once per 2 minutes
+
+// Heartbeat intervals based on idle state
+const PRESENCE_HEARTBEAT_ACTIVE_MS = 300000;      // 5 minutes - watching stream or idle < 15min
+const PRESENCE_HEARTBEAT_IDLE_15_MS = 600000;     // 10 minutes - idle 15-30min
+const PRESENCE_HEARTBEAT_IDLE_30_MS = 1200000;    // 20 minutes - idle 30-60min
+
+// Idle thresholds
+const PRESENCE_IDLE_15_MS = 900000;               // 15 minutes
+const PRESENCE_IDLE_30_MS = 1800000;              // 30 minutes
+const PRESENCE_IDLE_60_MS = 3600000;              // 60 minutes - pause heartbeat
+const PRESENCE_STALE_MS = 43200000;               // 12 hours - drop from list
+
+const PRESENCE_MIN_UPDATE_INTERVAL_MS = 120000;   // Don't update more than once per 2 minutes
 
 function presenceLog(...args) {
     if (PRESENCE_DEBUG) {
@@ -24,8 +34,11 @@ function presenceError(...args) {
 // Module loaded log removed for production
 
 let presenceHeartbeatInterval = null;
+let currentHeartbeatMs = PRESENCE_HEARTBEAT_ACTIVE_MS; // Current heartbeat interval
 let lastPresenceUpdate = 0;
 let lastPresenceStream = null; // Track last stream to detect meaningful changes
+let lastStreamTime = Date.now(); // Track when user last watched a stream
+let heartbeatPaused = false; // Track if heartbeat is paused (1hr+ idle)
 
 // Cache the resolved username to avoid repeated API calls
 let cachedUsername = null;
@@ -148,6 +161,17 @@ async function updatePresence(force = false) {
     // Firestore field names can't start with a number, so prefix with 'u'
     const odiskdKey = `u${currentUserId}`;
 
+    // Update lastStreamTime if user is watching a stream
+    if (streamInfo.stream) {
+        lastStreamTime = now;
+        // Resume heartbeat if it was paused
+        if (heartbeatPaused) {
+            presenceLog('updatePresence: User entered stream, resuming heartbeat');
+            heartbeatPaused = false;
+            adjustHeartbeatInterval();
+        }
+    }
+
     // Build presence data
     const presenceData = {
         odiskd: currentUserId,
@@ -156,7 +180,8 @@ async function updatePresence(force = false) {
         stream: streamInfo.stream,
         streamUrl: streamInfo.url,
         isGuesting: streamInfo.isGuesting,
-        lastSeen: now
+        lastSeen: now,
+        lastStreamTime: lastStreamTime
     };
 
     presenceLog('updatePresence: Sending data:', presenceData);
@@ -185,7 +210,8 @@ async function updatePresence(force = false) {
                                     stream: { stringValue: presenceData.stream || '' },
                                     streamUrl: { stringValue: presenceData.streamUrl || '' },
                                     isGuesting: { booleanValue: presenceData.isGuesting || false },
-                                    lastSeen: { integerValue: presenceData.lastSeen }
+                                    lastSeen: { integerValue: presenceData.lastSeen },
+                                    lastStreamTime: { integerValue: presenceData.lastStreamTime }
                                 }
                             }
                         }
@@ -305,7 +331,8 @@ async function fetchOnlineUsers() {
                             stream: fields.stream?.stringValue || null,
                             streamUrl: fields.streamUrl?.stringValue || null,
                             isGuesting: fields.isGuesting?.booleanValue || false,
-                            lastSeen: lastSeen
+                            lastSeen: lastSeen,
+                            lastStreamTime: parseInt(fields.lastStreamTime?.integerValue) || lastSeen
                         });
                         presenceLog(`fetchOnlineUsers: User ${fields.username?.stringValue || odiskd} is ONLINE`);
                     } else {
@@ -329,6 +356,63 @@ async function fetchOnlineUsers() {
     }
 }
 
+// Calculate appropriate heartbeat interval based on idle time
+function getHeartbeatInterval() {
+    const now = Date.now();
+    const idleTime = now - lastStreamTime;
+
+    if (idleTime >= PRESENCE_IDLE_60_MS) {
+        // Idle 1+ hour - pause heartbeat
+        return null;
+    } else if (idleTime >= PRESENCE_IDLE_30_MS) {
+        // Idle 30-60 min
+        return PRESENCE_HEARTBEAT_IDLE_30_MS;
+    } else if (idleTime >= PRESENCE_IDLE_15_MS) {
+        // Idle 15-30 min
+        return PRESENCE_HEARTBEAT_IDLE_15_MS;
+    } else {
+        // Active or idle < 15 min
+        return PRESENCE_HEARTBEAT_ACTIVE_MS;
+    }
+}
+
+// Adjust heartbeat interval based on idle state
+function adjustHeartbeatInterval() {
+    const newInterval = getHeartbeatInterval();
+
+    // Pause heartbeat if idle 1+ hour
+    if (newInterval === null) {
+        if (!heartbeatPaused) {
+            presenceLog('adjustHeartbeatInterval: Pausing heartbeat (idle 1+ hour)');
+            heartbeatPaused = true;
+            if (presenceHeartbeatInterval) {
+                clearInterval(presenceHeartbeatInterval);
+                presenceHeartbeatInterval = null;
+            }
+        }
+        return;
+    }
+
+    // Resume or adjust interval
+    if (newInterval !== currentHeartbeatMs || heartbeatPaused) {
+        presenceLog('adjustHeartbeatInterval: Changing interval from', currentHeartbeatMs, 'to', newInterval);
+        currentHeartbeatMs = newInterval;
+        heartbeatPaused = false;
+
+        // Clear existing interval and set new one
+        if (presenceHeartbeatInterval) {
+            clearInterval(presenceHeartbeatInterval);
+        }
+
+        presenceHeartbeatInterval = setInterval(() => {
+            presenceLog('Heartbeat tick (interval:', currentHeartbeatMs, 'ms)');
+            updatePresence(true);
+            // Check if we need to adjust interval after each tick
+            adjustHeartbeatInterval();
+        }, currentHeartbeatMs);
+    }
+}
+
 // Start presence heartbeat
 function startPresenceHeartbeat() {
     // Don't start if extension is disabled
@@ -338,31 +422,33 @@ function startPresenceHeartbeat() {
     }
 
     presenceLog('startPresenceHeartbeat: Starting heartbeat system');
-    presenceLog('startPresenceHeartbeat: Heartbeat interval:', PRESENCE_HEARTBEAT_MS, 'ms');
+    presenceLog('startPresenceHeartbeat: Initial interval:', currentHeartbeatMs, 'ms');
     presenceLog('startPresenceHeartbeat: Stale threshold:', PRESENCE_STALE_MS, 'ms');
 
     // Initial update (forced)
     presenceLog('startPresenceHeartbeat: Sending initial presence update');
     updatePresence(true);
 
-    // Heartbeat interval (forced to ensure regular updates)
-    presenceHeartbeatInterval = setInterval(() => {
-        presenceLog('startPresenceHeartbeat: Heartbeat tick');
-        updatePresence(true);
-    }, PRESENCE_HEARTBEAT_MS);
+    // Start with appropriate interval based on current state
+    adjustHeartbeatInterval();
 
     // Update on visibility change (tab becomes visible) - not forced, will be throttled
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             presenceLog('startPresenceHeartbeat: Tab became visible, updating presence');
             updatePresence(); // Not forced - will skip if recently updated
+            // Re-check heartbeat interval when tab becomes visible
+            adjustHeartbeatInterval();
         }
     });
 
     // Update on navigation (SPA) - not forced unless stream changes (handled in updatePresence)
     window.addEventListener('betternow:navigation', () => {
         presenceLog('startPresenceHeartbeat: Navigation detected, updating presence in 500ms');
-        setTimeout(() => updatePresence(), 500); // Not forced - will update if stream changed
+        setTimeout(() => {
+            updatePresence(); // Not forced - will update if stream changed
+            adjustHeartbeatInterval();
+        }, 500);
     });
 
     // Remove presence on page unload
