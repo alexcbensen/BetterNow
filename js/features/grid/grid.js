@@ -1,7 +1,7 @@
 // ============ Grid View ============
 // Toggle grid layout for multiple video streams
 
-const GRID_DEBUG = true; // Set to false before release
+const GRID_DEBUG = false; // Set to false before release
 
 function gridLog(...args) {
     if (GRID_DEBUG) {
@@ -33,6 +33,54 @@ function getVideoCount() {
     return document.querySelectorAll('.fullscreen-wrapper > .video:has(video.is-active), .fullscreen-wrapper > .video:has(.audio.is-active)').length;
 }
 
+// Get broadcaster username from URL
+function getBroadcasterUsername() {
+    const path = window.location.pathname;
+    const match = path.match(/^\/([^\/]+)/);
+    if (!match) return null;
+    const username = match[1].toLowerCase();
+    // Exclude non-stream pages
+    if (['explore', 'moments', 'settings', 'inbox', ''].includes(username)) {
+        return null;
+    }
+    return username;
+}
+
+// Mark the broadcaster's video tile for CSS targeting
+function markBroadcasterTile() {
+    const broadcasterUsername = getBroadcasterUsername();
+    if (!broadcasterUsername) return;
+
+    const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+
+    videoTiles.forEach(tile => {
+        // Check if this tile's video has a data-betternow-label containing the broadcaster's username
+        const video = tile.querySelector('video[data-betternow-label]');
+        if (video) {
+            const label = video.getAttribute('data-betternow-label').toLowerCase();
+            // Label format is like "guest-username-video0" or "broadcaster-username-video0"
+            if (label.includes(broadcasterUsername)) {
+                tile.setAttribute('data-betternow-broadcaster', 'true');
+                gridLog('Marked broadcaster tile:', broadcasterUsername);
+            } else {
+                tile.removeAttribute('data-betternow-broadcaster');
+            }
+        } else {
+            // Fallback: check the username in the toolbar overlay
+            const usernameEl = tile.querySelector('.toolbar--overlay .username');
+            if (usernameEl) {
+                const tileUsername = usernameEl.textContent.trim().toLowerCase();
+                if (tileUsername === broadcasterUsername) {
+                    tile.setAttribute('data-betternow-broadcaster', 'true');
+                    gridLog('Marked broadcaster tile (via toolbar):', broadcasterUsername);
+                } else {
+                    tile.removeAttribute('data-betternow-broadcaster');
+                }
+            }
+        }
+    });
+}
+
 function createGridToggle() {
     // Grid toggle is now in the BetterNow toolbar
     // This function just applies the grid view state
@@ -61,6 +109,8 @@ function applyGridView() {
     if (shouldBeActive) {
         gridLog('Adding betternow-grid-active class');
         document.body.classList.add('betternow-grid-active');
+        // Mark broadcaster's tile for notification positioning
+        markBroadcasterTile();
     } else {
         gridLog('Removing betternow-grid-active class');
         document.body.classList.remove('betternow-grid-active');
