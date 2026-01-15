@@ -287,7 +287,19 @@ async function createAdminPanelEntry() {
         return;
     }
 
-    const isSignedIn = !!firebaseIdToken;
+    // Validate token when popover opens (don't wait for it to block UI)
+    let isSignedIn = !!firebaseIdToken;
+    if (isSignedIn && typeof validateFirebaseToken === 'function') {
+        // Check in background and update icon when done
+        validateFirebaseToken().then(isValid => {
+            if (!isValid) {
+                const icon = document.getElementById('admin-lock-icon');
+                if (icon) {
+                    icon.className = 'bi bi-lock-fill';
+                }
+            }
+        });
+    }
 
     const adminBtn = document.createElement('button');
     adminBtn.id = 'admin-panel-btn';

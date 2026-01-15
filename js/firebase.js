@@ -26,6 +26,48 @@ let settingsLoaded = false;
 // Auth state
 let firebaseIdToken = sessionStorage.getItem('firebaseIdToken') || null;
 
+// Validate Firebase token by making a lightweight authenticated request
+async function validateFirebaseToken() {
+    if (!firebaseIdToken) return false;
+
+    try {
+        // Try to read a document that requires auth - use config/settings as it's small
+        const response = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken: firebaseIdToken })
+            }
+        );
+
+        if (!response.ok) {
+            // Token is invalid or expired
+            firebaseIdToken = null;
+            sessionStorage.removeItem('firebaseIdToken');
+            return false;
+        }
+
+        return true;
+    } catch (e) {
+        // Network error - assume token might still be valid
+        return true;
+    }
+}
+
+// Check token validity and update admin icon (called when profile popover opens)
+async function checkAuthAndUpdateIcon() {
+    const isValid = await validateFirebaseToken();
+
+    // Update the admin icon if it exists
+    const icon = document.getElementById('admin-lock-icon');
+    if (icon) {
+        icon.className = isValid ? 'bi bi-unlock-fill' : 'bi bi-lock-fill';
+    }
+
+    return isValid;
+}
+
 // Firebase SDK state (loaded via manifest)
 let firebaseApp = null;
 let firestoreDb = null;
