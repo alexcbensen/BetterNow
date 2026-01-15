@@ -45,6 +45,12 @@ function getCurrentStreamInfo() {
         return { stream: null, url: null };
     }
 
+    // Only report "watching" if the broadcaster is actually live
+    const isLive = document.querySelector('.broadcaster-is-online') !== null;
+    if (!isLive) {
+        return { stream: null, url: null };
+    }
+
     return {
         stream: streamName,
         url: path
