@@ -2,7 +2,7 @@
 // Automatically claims completed daily missions via API
 // Uses TRPX_DEVICE_ID and REQUEST_BY from localStorage (set by YouNow for logged-in users)
 
-const MISSIONS_DEBUG = false;
+const MISSIONS_DEBUG = true;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
@@ -189,11 +189,35 @@ async function claimMissionApi(mission) {
 function showMissionsClaimedPopup(claimedCount) {
     const text = claimedCount === 1 ? 'Mission Claimed' : 'Missions Claimed';
 
-    // Check if popup already exists and just update it
-    const existingPopup = document.querySelector('popover-container.popover--onboarding .popover-body');
-    if (existingPopup) {
-        existingPopup.textContent = text;
-        missionsLog('Updated existing popup text to:', text);
+    // Check if YouNow popup already exists and just update it
+    const existingPopupBody = document.querySelector('popover-container.popover--onboarding .popover-body');
+    if (existingPopupBody) {
+        // Fade out old text, then fade in new text
+        existingPopupBody.style.transition = 'opacity 0.3s ease-out';
+        existingPopupBody.style.opacity = '0';
+
+        setTimeout(() => {
+            existingPopupBody.textContent = text;
+            existingPopupBody.style.transition = 'opacity 0.3s ease-in';
+            existingPopupBody.style.opacity = '1';
+            missionsLog('Updated existing popup text to:', text);
+
+            // Find the parent popover-container to fade it out
+            const existingPopup = existingPopupBody.closest('popover-container');
+            if (existingPopup) {
+                // Fade out after 1.5 seconds (1.5s visible + 1.5s fade)
+                setTimeout(() => {
+                    existingPopup.style.transition = 'opacity 1.5s ease-out';
+                    existingPopup.style.opacity = '0';
+                    setTimeout(() => {
+                        if (existingPopup.parentNode) {
+                            existingPopup.remove();
+                            missionsLog('Removed existing YouNow popup');
+                        }
+                    }, 1500);
+                }, 1500);
+            }
+        }, 300); // Wait for fade-out to complete
         return;
     }
 
@@ -263,6 +287,12 @@ function showMissionsClaimedPopup(claimedCount) {
 
 async function autoClaimMissions(manualClaimCount = 0) {
     if (!missionsAutoClaimEnabled || isClaimingMission) {
+        return;
+    }
+
+    // Check global kill switch
+    if (typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled) {
+        missionsLog('autoClaimMissions: Auto Missions globally disabled by admin');
         return;
     }
 
@@ -431,6 +461,12 @@ function createMissionsAutoClaimButton() {
     // Only show on live broadcasts
     const isLive = document.querySelector('.broadcaster-is-online');
     if (!isLive) return;
+
+    // Check global kill switch first
+    if (typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled) {
+        missionsLog('createMissionsAutoClaimButton: Auto Missions globally disabled by admin');
+        return;
+    }
 
     // Check if user has access to autoMissions feature
     if (typeof userHasFeature === 'function' && !userHasFeature('autoMissions')) {
