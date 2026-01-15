@@ -290,8 +290,10 @@ async function autoClaimMissions(manualClaimCount = 0) {
         return;
     }
 
-    // Check global kill switch
-    if (typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled) {
+    // Check global kill switch (admins and users with explicit grant bypass)
+    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
+    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && typeof currentUserId !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoMissions');
+    if (!isAdmin && !hasExplicitGrant && typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled) {
         missionsLog('autoClaimMissions: Auto Missions globally disabled by admin');
         return;
     }
@@ -462,8 +464,10 @@ function createMissionsAutoClaimButton() {
     const isLive = document.querySelector('.broadcaster-is-online');
     if (!isLive) return;
 
-    // Check global kill switch first
-    if (typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled) {
+    // Check global kill switch (admins and users with explicit grant bypass)
+    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
+    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && typeof currentUserId !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoMissions');
+    if (!isAdmin && !hasExplicitGrant && typeof globalAutoMissionsEnabled !== 'undefined' && !globalAutoMissionsEnabled) {
         missionsLog('createMissionsAutoClaimButton: Auto Missions globally disabled by admin');
         return;
     }
