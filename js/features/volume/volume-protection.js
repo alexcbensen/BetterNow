@@ -33,7 +33,6 @@
             if (this.dataset && this.dataset.betternowProtected === 'true') {
                 const intendedVol = parseFloat(this.dataset.betternowIntendedVolume);
                 if (!isNaN(intendedVol) && Math.abs(val - intendedVol) > 0.001) {
-                    console.log('[BetterNow Volume] Blocked external volume change on', this.dataset.betternowLabel || 'unknown', ':', val.toFixed(2), '→ keeping:', intendedVol.toFixed(2));
                     return; // Block the change
                 }
             }
@@ -61,7 +60,6 @@
             if (this.dataset && this.dataset.betternowProtected === 'true') {
                 const intendedMuted = this.dataset.betternowIntendedMuted === 'true';
                 if (val !== intendedMuted) {
-                    console.log('[BetterNow Volume] Blocked external muted change on', this.dataset.betternowLabel || 'unknown', ':', val, '→ keeping:', intendedMuted);
                     return; // Block the change
                 }
             }
@@ -79,6 +77,4 @@
             window.__betternowChangingVolume = event.data.value;
         }
     });
-
-    console.log('[BetterNow Volume] Prototype-level volume protection installed (early)');
 })();
