@@ -268,12 +268,10 @@ async function renderOnlineUsers(forceRefresh = false) {
             // Idle 1+ hour - "idle for Xh"
             const hours = Math.floor(idleTime / 3600000);
             streamHtml = `<span style="color: #666; font-size: 12px;">idle for ${hours}h</span>`;
-        } else if (idleTime >= 1800000) {
-            // Idle 30-60 min - "last seen ~30m ago"
-            streamHtml = `<span style="color: #888; font-size: 12px;">last seen ~30m ago</span>`;
         } else if (idleTime >= 600000) {
-            // Idle 10-30 min - "last seen ~10m ago"
-            streamHtml = `<span style="color: #888; font-size: 12px;">last seen ~10m ago</span>`;
+            // Idle 10-60 min - show actual minutes
+            const minutes = Math.floor(idleTime / 60000);
+            streamHtml = `<span style="color: #888; font-size: 12px;">last seen ${minutes}m ago</span>`;
         } else {
             // Idle < 10 min - "online"
             streamHtml = `<span style="color: #888; font-size: 12px;">online</span>`;
