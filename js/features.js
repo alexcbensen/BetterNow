@@ -129,38 +129,7 @@ function createBetterNowToolbar() {
     rightSection.className = 'betternow-toolbar__right';
     rightSection.style.cssText = 'display: flex; align-items: center; gap: 12px; flex: 0; justify-content: flex-end;';
 
-    // Add Hide Avatars toggle button (only when broadcasting)
-    if (typeof isBroadcasting === 'function' && isBroadcasting()) {
-        let hideAvatarsEnabled = localStorage.getItem('betternow-hide-avatars') === 'true';
-        const hideAvatarsToggle = document.createElement('button');
-        hideAvatarsToggle.id = 'betternow-hide-avatars-toggle';
-        hideAvatarsToggle.textContent = 'HIDE AVATARS';
-        hideAvatarsToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
-            background: ${hideAvatarsEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
-            color: ${hideAvatarsEnabled ? '#000' : 'var(--color-white, #fff)'};
-        `;
-
-        // Apply initial state
-        if (hideAvatarsEnabled) {
-            document.body.classList.add('betternow-hide-avatars');
-        }
-
-        hideAvatarsToggle.onclick = () => {
-            hideAvatarsEnabled = !hideAvatarsEnabled;
-            localStorage.setItem('betternow-hide-avatars', hideAvatarsEnabled.toString());
-
-            if (hideAvatarsEnabled) {
-                document.body.classList.add('betternow-hide-avatars');
-                hideAvatarsToggle.style.background = 'var(--color-primary-green, #08d687)';
-                hideAvatarsToggle.style.color = '#000';
-            } else {
-                document.body.classList.remove('betternow-hide-avatars');
-                hideAvatarsToggle.style.background = 'var(--color-mediumgray, #888)';
-                hideAvatarsToggle.style.color = 'var(--color-white, #fff)';
-            }
-        };
-        leftSection.appendChild(hideAvatarsToggle);
-    }
+    // Note: Hide Avatars button is added dynamically by avatarSelectorObserver when app-select-avatar appears
 
     // Add CSS toggle button to left section for testing
     const cssToggle = document.createElement('button');
@@ -323,6 +292,95 @@ function removeBetterNowToolbar() {
         toolbar.remove();
         resetToolbarFeatures();
     }
+}
+
+// ============ Avatar Selector Observer ============
+// Watches for app-select-avatar appearing/disappearing to show/hide the Hide Avatars button
+
+let avatarSelectorObserver = null;
+
+function createHideAvatarsButton() {
+    const toolbar = document.getElementById('betternow-toolbar');
+    if (!toolbar) return;
+
+    // Don't create if already exists
+    if (document.getElementById('betternow-hide-avatars-toggle')) return;
+
+    const leftSection = toolbar.querySelector('.betternow-toolbar__left');
+    if (!leftSection) return;
+
+    let hideAvatarsEnabled = localStorage.getItem('betternow-hide-avatars') === 'true';
+    const hideAvatarsToggle = document.createElement('button');
+    hideAvatarsToggle.id = 'betternow-hide-avatars-toggle';
+    hideAvatarsToggle.textContent = 'HIDE AVATARS';
+    hideAvatarsToggle.style.cssText = BETTERNOW_BUTTON_STYLE + `
+        background: ${hideAvatarsEnabled ? 'var(--color-primary-green, #08d687)' : 'var(--color-mediumgray, #888)'};
+        color: ${hideAvatarsEnabled ? '#000' : 'var(--color-white, #fff)'};
+    `;
+
+    // Apply initial state
+    if (hideAvatarsEnabled) {
+        document.body.classList.add('betternow-hide-avatars');
+    }
+
+    hideAvatarsToggle.onclick = () => {
+        hideAvatarsEnabled = !hideAvatarsEnabled;
+        localStorage.setItem('betternow-hide-avatars', hideAvatarsEnabled.toString());
+
+        if (hideAvatarsEnabled) {
+            document.body.classList.add('betternow-hide-avatars');
+            hideAvatarsToggle.style.background = 'var(--color-primary-green, #08d687)';
+            hideAvatarsToggle.style.color = '#000';
+        } else {
+            document.body.classList.remove('betternow-hide-avatars');
+            hideAvatarsToggle.style.background = 'var(--color-mediumgray, #888)';
+            hideAvatarsToggle.style.color = 'var(--color-white, #fff)';
+        }
+    };
+
+    // Insert at the beginning of left section
+    leftSection.insertBefore(hideAvatarsToggle, leftSection.firstChild);
+}
+
+function removeHideAvatarsButton() {
+    const btn = document.getElementById('betternow-hide-avatars-toggle');
+    if (btn) {
+        btn.remove();
+    }
+    // Also remove the body class when avatar selector disappears
+    document.body.classList.remove('betternow-hide-avatars');
+}
+
+function setupAvatarSelectorObserver() {
+    if (avatarSelectorObserver) return;
+
+    avatarSelectorObserver = new MutationObserver((mutations) => {
+        const hasAvatarSelector = document.querySelector('app-select-avatar') !== null;
+        const hasButton = document.getElementById('betternow-hide-avatars-toggle') !== null;
+
+        if (hasAvatarSelector && !hasButton) {
+            createHideAvatarsButton();
+        } else if (!hasAvatarSelector && hasButton) {
+            removeHideAvatarsButton();
+        }
+    });
+
+    avatarSelectorObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
+    // Check initial state
+    if (document.querySelector('app-select-avatar')) {
+        createHideAvatarsButton();
+    }
+}
+
+// Start observer when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupAvatarSelectorObserver);
+} else {
+    setupAvatarSelectorObserver();
 }
 
 // NOTE: Toolbar initialization is triggered from script.js after all scripts are loaded
