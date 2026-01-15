@@ -617,6 +617,12 @@ function createChestControls() {
         return;
     }
 
+    // Check global kill switch first
+    if (typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
+        chestLog('createChestControls: Auto Chest globally disabled by admin');
+        return;
+    }
+
     // Check if user has access to autoChest feature
     if (typeof userHasFeature === 'function' && !userHasFeature('autoChest')) {
         chestLog('createChestControls: User does not have autoChest feature, skipping');
@@ -2271,6 +2277,12 @@ const VIEWER_ENABLED_DEBOUNCE_MS = 1500; // Wait 1.5s for rapid toggles to settl
 
 async function startViewerMonitoring() {
     if (viewerModeActive) return; // Already in viewer mode
+
+    // Check global kill switch first
+    if (typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
+        chestLog('startViewerMonitoring: Auto Chest globally disabled by admin');
+        return;
+    }
 
     // Check if user has access to autoChest feature
     if (typeof userHasFeature === 'function' && !userHasFeature('autoChest')) {
