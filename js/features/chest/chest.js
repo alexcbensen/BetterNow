@@ -617,8 +617,10 @@ function createChestControls() {
         return;
     }
 
-    // Check global kill switch first
-    if (typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
+    // Check global kill switch (admins and users with explicit grant bypass)
+    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
+    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
+    if (!isAdmin && !hasExplicitGrant && typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
         chestLog('createChestControls: Auto Chest globally disabled by admin');
         return;
     }
@@ -2278,8 +2280,10 @@ const VIEWER_ENABLED_DEBOUNCE_MS = 1500; // Wait 1.5s for rapid toggles to settl
 async function startViewerMonitoring() {
     if (viewerModeActive) return; // Already in viewer mode
 
-    // Check global kill switch first
-    if (typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
+    // Check global kill switch (admins and users with explicit grant bypass)
+    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
+    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
+    if (!isAdmin && !hasExplicitGrant && typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
         chestLog('startViewerMonitoring: Auto Chest globally disabled by admin');
         return;
     }
