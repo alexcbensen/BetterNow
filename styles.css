@@ -143,6 +143,16 @@ app-channel .header {
     z-index: 10 !important;
 }
 
+/* In grid view, hide ranking/trending notifications on non-broadcaster tiles */
+.betternow-grid-active app-channel .fullscreen-wrapper > .video:not([data-betternow-broadcaster]) .main-video-wrapper app-godmessage {
+    display: none !important;
+}
+
+/* Ensure notifications show on broadcaster's tile */
+.betternow-grid-active app-channel .fullscreen-wrapper > .video[data-betternow-broadcaster] .main-video-wrapper app-godmessage {
+    display: block !important;
+}
+
 /* Rounded corners for all videos */
 .video-player .video {
     border-radius: 12px;
