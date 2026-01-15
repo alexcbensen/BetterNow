@@ -23,6 +23,73 @@ function volumeError(...args) {
     console.error('[BetterNow Volume]', ...args);
 }
 
+// Get current broadcaster username from URL (used for per-stream volume persistence)
+function getCurrentBroadcasterUsername() {
+    // URL format: https://www.younow.com/{username}
+    const path = window.location.pathname;
+    const match = path.match(/^\/([^\/]+)/);
+    if (match && match[1]) {
+        // Exclude known non-broadcaster paths
+        const excludedPaths = ['explore', 'search', 'settings', 'moments', 'inbox'];
+        if (!excludedPaths.includes(match[1].toLowerCase())) {
+            return match[1].toLowerCase();
+        }
+    }
+    return null;
+}
+
+// ============ Volume Protection System ============
+// Prevents YouNow from overriding our volume settings when scrolling
+// NOTE: Prototype-level interception is done by volume-protection-injector.js at document_start
+
+// Flag to track when WE are changing volume (to allow our own changes)
+let betternowChangingVolume = false;
+
+// Track intended volume for broadcaster mode
+let intendedBroadcasterVolume = null;
+let intendedBroadcasterMuted = null;
+
+// Track intended volumes for guest videos (WeakMap prevents memory leaks)
+const intendedGuestVolumes = new WeakMap();
+
+// Set volume with protection flag (communicates with page context via postMessage)
+function setVideoVolume(video, volume, muted) {
+    // Set flag in page context via postMessage
+    window.postMessage({ type: 'BETTERNOW_VOLUME_FLAG', value: true }, '*');
+
+    // Store intended values in dataset (accessible from page context)
+    video.dataset.betternowIntendedVolume = volume.toString();
+    video.dataset.betternowIntendedMuted = muted.toString();
+
+    // Apply the change
+    video.volume = volume;
+    video.muted = muted;
+
+    // Clear flag in page context
+    window.postMessage({ type: 'BETTERNOW_VOLUME_FLAG', value: false }, '*');
+}
+
+// Mark a video as protected
+function protectVideoVolume(video, getIntendedVolume, getIntendedMuted, label) {
+    // Skip if already protected
+    if (video.dataset.betternowProtected === 'true') {
+        volumeLog('Video already protected:', label);
+        return;
+    }
+    video.dataset.betternowProtected = 'true';
+    video.dataset.betternowLabel = label;
+
+    // Store initial intended values
+    const vol = getIntendedVolume();
+    const muted = getIntendedMuted();
+    if (vol !== null) {
+        video.dataset.betternowIntendedVolume = vol.toString();
+        video.dataset.betternowIntendedMuted = (muted || false).toString();
+    }
+
+    volumeLog('Volume protection enabled for', label);
+}
+
 // Check if current page is a live stream
 // Requires multiple conditions to prevent false positives during navigation
 function isLiveStream() {
@@ -171,34 +238,88 @@ function createGlobalVolumeSlider() {
             // Mirror broadcaster mode
             freshVolumeBtn.title = 'Broadcaster Volume';
 
-            // Set initial value from broadcaster
-            const currentVol = Math.round(broadcasterVideo.volume * 100);
-            freshSlider.value = currentVol.toString();
-            updateVolumeIcon(freshVolumeIcon, currentVol.toString());
-            volumeLog('Broadcaster mode: Initial volume:', currentVol);
+            // Get broadcaster username for per-stream persistence
+            const broadcasterUsername = getCurrentBroadcasterUsername();
+            const volumeKey = broadcasterUsername
+                ? `betternow-broadcaster-volume-${broadcasterUsername}`
+                : null;
+            const lastVolumeKey = broadcasterUsername
+                ? `betternow-broadcaster-last-volume-${broadcasterUsername}`
+                : null;
+
+            // Set initial value from localStorage (per-stream) or current video state
+            let initialVol;
+            if (volumeKey) {
+                const savedVol = localStorage.getItem(volumeKey);
+                initialVol = savedVol !== null ? parseInt(savedVol) : Math.round(broadcasterVideo.volume * 100);
+                volumeLog('Broadcaster mode: Loaded volume for', broadcasterUsername, ':', initialVol);
+            } else {
+                initialVol = Math.round(broadcasterVideo.volume * 100);
+            }
+
+            freshSlider.value = initialVol.toString();
+            updateVolumeIcon(freshVolumeIcon, initialVol.toString());
+
+            // Set initial intended state and apply it
+            intendedBroadcasterVolume = initialVol / 100;
+            intendedBroadcasterMuted = initialVol === 0;
+            setVideoVolume(broadcasterVideo, intendedBroadcasterVolume, intendedBroadcasterMuted);
+            volumeLog('Broadcaster mode: Initial volume:', initialVol, '| protected');
+
+            // Protect broadcaster video from external changes
+            protectVideoVolume(
+                broadcasterVideo,
+                () => intendedBroadcasterVolume,
+                () => intendedBroadcasterMuted,
+                'broadcaster'
+            );
+
+            // Track last non-zero volume for unmute restore
+            const savedLastVol = lastVolumeKey ? localStorage.getItem(lastVolumeKey) : null;
+            let lastNonZeroBroadcasterVol = savedLastVol !== null
+                ? parseInt(savedLastVol)
+                : (initialVol > 0 ? initialVol : 50);
 
             freshSlider.addEventListener('input', () => {
                 const vol = parseInt(freshSlider.value);
-                const oldVol = broadcasterVideo.volume;
-                broadcasterVideo.volume = vol / 100;
-                broadcasterVideo.muted = vol === 0;
+                const oldVol = intendedBroadcasterVolume;
+                intendedBroadcasterVolume = vol / 100;
+                intendedBroadcasterMuted = vol === 0;
+                if (vol > 0) lastNonZeroBroadcasterVol = vol;
+
+                // Save per-stream volume
+                if (volumeKey) localStorage.setItem(volumeKey, vol.toString());
+                if (lastVolumeKey && vol > 0) localStorage.setItem(lastVolumeKey, vol.toString());
+
+                setVideoVolume(broadcasterVideo, intendedBroadcasterVolume, intendedBroadcasterMuted);
                 updateVolumeIcon(freshVolumeIcon, freshSlider.value);
-                volumeLog('Broadcaster slider changed:', oldVol.toFixed(2), '→', (vol / 100).toFixed(2), '| muted:', broadcasterVideo.muted);
+                volumeLog('Broadcaster slider changed:', oldVol.toFixed(2), '→', (vol / 100).toFixed(2), '| muted:', intendedBroadcasterMuted);
             });
 
             freshVolumeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const wasMuted = broadcasterVideo.muted || broadcasterVideo.volume === 0;
+                const wasMuted = intendedBroadcasterMuted || intendedBroadcasterVolume === 0;
                 if (wasMuted) {
-                    broadcasterVideo.muted = false;
-                    broadcasterVideo.volume = 0.5;
-                    freshSlider.value = '50';
-                    volumeLog('Broadcaster unmuted: volume → 0.50');
+                    // Restore last non-zero volume
+                    intendedBroadcasterVolume = lastNonZeroBroadcasterVol / 100;
+                    intendedBroadcasterMuted = false;
+                    freshSlider.value = lastNonZeroBroadcasterVol.toString();
+                    if (volumeKey) localStorage.setItem(volumeKey, lastNonZeroBroadcasterVol.toString());
+                    volumeLog('Broadcaster unmuted: volume → ', intendedBroadcasterVolume.toFixed(2));
                 } else {
-                    broadcasterVideo.muted = true;
+                    // Save current volume before muting
+                    const currentVol = Math.round(intendedBroadcasterVolume * 100);
+                    if (currentVol > 0) {
+                        lastNonZeroBroadcasterVol = currentVol;
+                        if (lastVolumeKey) localStorage.setItem(lastVolumeKey, currentVol.toString());
+                    }
+                    intendedBroadcasterVolume = 0;
+                    intendedBroadcasterMuted = true;
                     freshSlider.value = '0';
+                    if (volumeKey) localStorage.setItem(volumeKey, '0');
                     volumeLog('Broadcaster muted');
                 }
+                setVideoVolume(broadcasterVideo, intendedBroadcasterVolume, intendedBroadcasterMuted);
                 updateVolumeIcon(freshVolumeIcon, freshSlider.value);
             });
         } else {
@@ -249,16 +370,6 @@ function createGlobalVolumeSlider() {
             applyGlobalMultiplier(globalMultiplier);
         }
     }
-
-    // In broadcaster mode, sync with broadcaster video periodically
-    if (volumeContainer.dataset.mode === 'broadcaster') {
-        const currentVol = broadcasterVideo.muted ? 0 : Math.round(broadcasterVideo.volume * 100);
-        const sliderVol = parseInt(volumeContainer.querySelector('.slider').value);
-        if (currentVol !== sliderVol) {
-            volumeContainer.querySelector('.slider').value = currentVol.toString();
-            updateVolumeIcon(volumeContainer.querySelector('.volume__icon i'), currentVol.toString());
-        }
-    }
 }
 
 function applyGlobalMultiplier(multiplier) {
@@ -283,13 +394,26 @@ function applyGlobalMultiplier(multiplier) {
 
         // Apply multiplier to base volume
         const effectiveVolume = (baseVolume * multiplier) / 100;
+        const effectiveVolumeNormalized = effectiveVolume / 100;
+        const shouldMute = effectiveVolume === 0;
 
         volumeLog('applyGlobalMultiplier: Tile', index, '- User:', username, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
 
-        // Apply to ALL videos in this tile
+        // Apply to ALL videos in this tile with protection
         videoElements.forEach((v, vIndex) => {
-            v.volume = effectiveVolume / 100;
-            v.muted = effectiveVolume === 0;
+            // Store intended volume for this video
+            intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
+
+            // Apply with protection flag
+            setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
+
+            // Add protection listener if not already protected
+            protectVideoVolume(
+                v,
+                () => intendedGuestVolumes.get(v)?.volume ?? null,
+                () => intendedGuestVolumes.get(v)?.muted ?? false,
+                `guest-${username}-video${vIndex}`
+            );
         });
     });
 }
@@ -313,16 +437,27 @@ function applyEarlyVolumes() {
 
         const baseVolume = (username && guestVolumeStates.has(username)) ? guestVolumeStates.get(username) : 100;
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+        const effectiveVolumeNormalized = effectiveVolume / 100;
+        const shouldMute = effectiveVolume === 0;
 
-        videoElements.forEach((v) => {
+        videoElements.forEach((v, vIndex) => {
             if (v.dataset.volumeApplied) return;
 
             if (username === 'You') {
-                v.muted = true;
+                intendedGuestVolumes.set(v, { volume: 0, muted: true });
+                setVideoVolume(v, 0, true);
             } else {
-                v.volume = effectiveVolume / 100;
-                v.muted = effectiveVolume === 0;
+                intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
+                setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
                 appliedCount++;
+
+                // Add protection listener
+                protectVideoVolume(
+                    v,
+                    () => intendedGuestVolumes.get(v)?.volume ?? null,
+                    () => intendedGuestVolumes.get(v)?.muted ?? false,
+                    `guest-${username}-video${vIndex}-early`
+                );
             }
             v.dataset.volumeApplied = 'true';
         });
@@ -499,16 +634,19 @@ function createVolumeSliders() {
             let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
             if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
             const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+            const effectiveVolumeNormalized = effectiveVolume / 100;
+            const shouldMute = effectiveVolume === 0;
             const currentUsername = getGuestUsername(tile);
 
             volumeLog('Individual slider changed for', currentUsername, '| baseVolume:', baseVolume, '| globalMultiplier:', globalMultiplier, '| effectiveVolume:', effectiveVolume);
 
-            // Apply to all videos in this tile
+            // Apply to all videos in this tile with protection
             tile.querySelectorAll('video').forEach((v, vIndex) => {
                 const oldVol = v.volume;
-                v.volume = effectiveVolume / 100;
-                v.muted = effectiveVolume === 0;
-                volumeLog('Individual slider: Video', vIndex, '- volume:', oldVol.toFixed(2), '→', v.volume.toFixed(2), '| muted:', v.muted);
+                // Update intended volume
+                intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
+                setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
+                volumeLog('Individual slider: Video', vIndex, '- volume:', oldVol.toFixed(2), '→', effectiveVolumeNormalized.toFixed(2), '| muted:', shouldMute);
             });
             updateVolumeIcon(volumeIcon, slider.value);
 
@@ -528,7 +666,13 @@ function createVolumeSliders() {
             const firstVideo = videos[0];
             const currentUsername = getGuestUsername(tile);
 
-            if (firstVideo && (firstVideo.muted || firstVideo.volume === 0)) {
+            // Check intended state if available, otherwise check actual video state
+            const intendedState = firstVideo ? intendedGuestVolumes.get(firstVideo) : null;
+            const isMuted = intendedState
+                ? (intendedState.muted || intendedState.volume === 0)
+                : (firstVideo && (firstVideo.muted || firstVideo.volume === 0));
+
+            if (isMuted) {
                 // Unmuting - restore previous volume or default to 100
                 const savedVolume = currentUsername && guestVolumeStates.has(currentUsername)
                     ? guestVolumeStates.get(currentUsername)
@@ -536,11 +680,12 @@ function createVolumeSliders() {
                 // If saved volume was 0 (muted), restore to 100
                 const baseVolume = savedVolume > 0 ? savedVolume : 100;
                 const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+                const effectiveVolumeNormalized = effectiveVolume / 100;
                 volumeLog('Individual mute toggle: Unmuting', currentUsername, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
                 videos.forEach((v, vIndex) => {
-                    v.muted = false;
-                    v.volume = effectiveVolume / 100;
-                    volumeLog('Individual unmute: Video', vIndex, '- volume → ', v.volume.toFixed(2));
+                    intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: false });
+                    setVideoVolume(v, effectiveVolumeNormalized, false);
+                    volumeLog('Individual unmute: Video', vIndex, '- volume → ', effectiveVolumeNormalized.toFixed(2));
                 });
                 slider.value = baseVolume.toString();
 
@@ -561,8 +706,8 @@ function createVolumeSliders() {
                 }
 
                 videos.forEach((v, vIndex) => {
-                    v.muted = true;
-                    v.volume = 0;
+                    intendedGuestVolumes.set(v, { volume: 0, muted: true });
+                    setVideoVolume(v, 0, true);
                     volumeLog('Individual mute: Video', vIndex, '- muted');
                 });
                 slider.value = '0';
@@ -671,7 +816,10 @@ function reapplyAllGuestVolumes() {
 
         // Skip the user's own tile (shows "You") to prevent echo
         if (username === 'You') {
-            videoElements.forEach(v => v.muted = true);
+            videoElements.forEach(v => {
+                intendedGuestVolumes.set(v, { volume: 0, muted: true });
+                setVideoVolume(v, 0, true);
+            });
             return;
         }
 
@@ -682,10 +830,20 @@ function reapplyAllGuestVolumes() {
 
         // Apply multiplier for actual video volume to ALL videos in tile
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+        const effectiveVolumeNormalized = effectiveVolume / 100;
+        const shouldMute = effectiveVolume === 0;
 
-        videoElements.forEach((v) => {
-            v.volume = effectiveVolume / 100;
-            v.muted = effectiveVolume === 0;
+        videoElements.forEach((v, vIndex) => {
+            intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
+            setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
+
+            // Add protection listener if not already protected
+            protectVideoVolume(
+                v,
+                () => intendedGuestVolumes.get(v)?.volume ?? null,
+                () => intendedGuestVolumes.get(v)?.muted ?? false,
+                `guest-${username}-video${vIndex}`
+            );
         });
 
         // Individual slider shows base volume (not multiplied)
@@ -706,6 +864,16 @@ function resetVolumeControls() {
 
     // Clear last guest usernames
     lastGuestUsernames = new Set();
+
+    // Clear intended broadcaster volume state
+    intendedBroadcasterVolume = null;
+    intendedBroadcasterMuted = null;
+
+    // Clear protection flags from old videos (WeakMap handles cleanup automatically,
+    // but we need to clear the dataset flag so new videos can be protected)
+    document.querySelectorAll('video[data-betternow-protected]').forEach(v => {
+        delete v.dataset.betternowProtected;
+    });
 
     // Remove existing volume sliders
     document.querySelectorAll('.betternow-volume-slider').forEach(el => el.remove());
@@ -802,6 +970,27 @@ function startVolumeObserver() {
 }
 
 volumeLog('Volume module initialized');
+
+// DEBUG: Global monitor to catch ALL video volume changes on the page
+// This helps identify if YouNow is changing volume on unprotected videos
+if (VOLUME_DEBUG) {
+    document.addEventListener('volumechange', (e) => {
+        if (e.target.tagName === 'VIDEO') {
+            const video = e.target;
+            const label = video.dataset.betternowLabel || 'UNPROTECTED';
+            const isProtected = video.dataset.betternowProtected === 'true';
+            volumeLog('GLOBAL volumechange detected |',
+                'label:', label,
+                '| protected:', isProtected,
+                '| volume:', video.volume.toFixed(2),
+                '| muted:', video.muted,
+                '| selector:', video.closest('.video')?.querySelector('.username span')?.textContent || 'unknown'
+            );
+        }
+    }, true); // Use capture phase to catch before any handlers
+    volumeLog('Global volume monitor active');
+}
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startVolumeObserver);
 } else {
