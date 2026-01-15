@@ -201,6 +201,26 @@ async function renderOnlineUsers(forceRefresh = false) {
             isRecentlyActive(user);
     };
 
+    // Helper: check if we should show "watching" for a user
+    // Returns false if we have fresh data showing the broadcaster is NOT live
+    const shouldShowWatching = (user) => {
+        if (!user.stream || !isRecentlyActive(user)) return false;
+
+        // Look up the broadcaster in our list
+        const broadcaster = displayUsers.find(u =>
+            u.username.toLowerCase() === user.stream.toLowerCase()
+        );
+
+        // If broadcaster is in our list with recent data, check if they're actually live
+        if (broadcaster && isRecentlyActive(broadcaster)) {
+            // We have fresh data - only show "watching" if they're live
+            return isLive(broadcaster);
+        }
+
+        // Broadcaster not in list or data is stale - trust the viewer's heartbeat
+        return true;
+    };
+
     // Sort users: live broadcasters first, then viewers watching streams, then idle
     const sortedUsers = [...displayUsers].sort((a, b) => {
         const aLive = isLive(a);
@@ -208,10 +228,9 @@ async function renderOnlineUsers(forceRefresh = false) {
         // Live broadcasters first
         if (aLive && !bLive) return -1;
         if (!aLive && bLive) return 1;
-        // Then users actively watching a stream (recently active with stream set)
-        // Note: stream field is only set if broadcaster was live when heartbeat was sent
-        const aWatching = a.stream && isRecentlyActive(a);
-        const bWatching = b.stream && isRecentlyActive(b);
+        // Then users actively watching a live stream
+        const aWatching = shouldShowWatching(a);
+        const bWatching = shouldShowWatching(b);
         if (aWatching && !bWatching) return -1;
         if (!aWatching && bWatching) return 1;
         return 0;
@@ -220,10 +239,8 @@ async function renderOnlineUsers(forceRefresh = false) {
     // Render user list
     container.innerHTML = sortedUsers.map(user => {
         const idleTime = getIdleTime(user);
-        const recentlyActive = isRecentlyActive(user);
 
         // Show "LIVE" badge if broadcasting, otherwise show stream info or idle status
-        // Note: stream field is only populated if broadcaster was live at heartbeat time
         let streamHtml = '';
         if (isLive(user)) {
             streamHtml = `<a href="/${user.username}" target="_blank" style="
@@ -241,8 +258,8 @@ async function renderOnlineUsers(forceRefresh = false) {
                 text-decoration: none;
                 cursor: pointer;
             ">Live</a>`;
-        } else if (user.stream && recentlyActive) {
-            // Show "watching/guesting" - stream was verified live at heartbeat time
+        } else if (shouldShowWatching(user)) {
+            // Show "watching/guesting" - broadcaster is verified live
             const action = user.isGuesting ? 'guesting' : 'watching';
             streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
         } else if (idleTime >= 3600000) {
