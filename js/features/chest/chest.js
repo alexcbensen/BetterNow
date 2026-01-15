@@ -618,16 +618,10 @@ function createChestControls() {
     }
 
     // Check global kill switch (admins and users with explicit grant bypass)
-    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
-    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
+    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
+    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && typeof currentUserId !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
     if (!isAdmin && !hasExplicitGrant && typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
         chestLog('createChestControls: Auto Chest globally disabled by admin');
-        return;
-    }
-
-    // Check if user has access to autoChest feature
-    if (typeof userHasFeature === 'function' && !userHasFeature('autoChest')) {
-        chestLog('createChestControls: User does not have autoChest feature, skipping');
         return;
     }
 
@@ -2281,16 +2275,10 @@ async function startViewerMonitoring() {
     if (viewerModeActive) return; // Already in viewer mode
 
     // Check global kill switch (admins and users with explicit grant bypass)
-    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
-    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
+    const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
+    const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && typeof currentUserId !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
     if (!isAdmin && !hasExplicitGrant && typeof globalAutoChestEnabled !== 'undefined' && !globalAutoChestEnabled) {
         chestLog('startViewerMonitoring: Auto Chest globally disabled by admin');
-        return;
-    }
-
-    // Check if user has access to autoChest feature
-    if (typeof userHasFeature === 'function' && !userHasFeature('autoChest')) {
-        chestLog('startViewerMonitoring: User does not have autoChest feature, skipping');
         return;
     }
 
