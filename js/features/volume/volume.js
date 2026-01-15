@@ -381,6 +381,44 @@ function applyGlobalMultiplier(multiplier) {
         multiplier = 100;
     }
 
+    // Also apply to main broadcaster video (in case it's separate from guest tiles)
+    const broadcasterVideo = document.querySelector('.video-player video');
+    if (broadcasterVideo) {
+        // Get saved per-broadcaster volume (same keys as broadcaster mode)
+        const broadcasterUsername = getCurrentBroadcasterUsername();
+        const volumeKey = broadcasterUsername
+            ? `betternow-broadcaster-volume-${broadcasterUsername}`
+            : null;
+
+        // Load saved volume or default to 100
+        let savedBroadcasterVol = 100;
+        if (volumeKey) {
+            const saved = localStorage.getItem(volumeKey);
+            if (saved !== null) {
+                savedBroadcasterVol = parseInt(saved);
+            }
+        }
+
+        // Apply multiplier to saved broadcaster volume
+        const effectiveVolume = (savedBroadcasterVol * multiplier) / 100;
+        const effectiveVolumeNormalized = effectiveVolume / 100;
+        const shouldMute = effectiveVolume === 0;
+
+        // Store intended volume
+        intendedGuestVolumes.set(broadcasterVideo, { volume: effectiveVolumeNormalized, muted: shouldMute });
+
+        // Apply with protection
+        setVideoVolume(broadcasterVideo, effectiveVolumeNormalized, shouldMute);
+
+        // Protect from external changes
+        protectVideoVolume(
+            broadcasterVideo,
+            () => intendedGuestVolumes.get(broadcasterVideo)?.volume ?? null,
+            () => intendedGuestVolumes.get(broadcasterVideo)?.muted ?? false,
+            'broadcaster-main'
+        );
+    }
+
     const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
 
     videoTiles.forEach((tile, index) => {
