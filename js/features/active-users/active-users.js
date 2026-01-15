@@ -180,8 +180,17 @@ async function renderOnlineUsers(forceRefresh = false) {
         return;
     }
 
-    // Sort users: those watching a stream first, then those not in a stream
+    // Helper: check if user is broadcasting (watching themselves)
+    const isLive = (user) => user.stream && user.stream.toLowerCase() === user.username.toLowerCase();
+
+    // Sort users: live broadcasters first, then viewers watching streams, then idle
     const sortedUsers = [...displayUsers].sort((a, b) => {
+        const aLive = isLive(a);
+        const bLive = isLive(b);
+        // Live broadcasters first
+        if (aLive && !bLive) return -1;
+        if (!aLive && bLive) return 1;
+        // Then users watching a stream
         if (a.stream && !b.stream) return -1;
         if (!a.stream && b.stream) return 1;
         return 0;
@@ -189,10 +198,29 @@ async function renderOnlineUsers(forceRefresh = false) {
 
     // Render user list
     container.innerHTML = sortedUsers.map(user => {
-        // Only show stream info if user is watching a stream
-        const streamHtml = user.stream
-            ? `<span style="color: #888; font-size: 12px;">watching </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`
-            : '';
+        const userIsLive = isLive(user);
+
+        // Show "LIVE" badge if broadcasting, otherwise show stream info or "online"
+        let streamHtml = '';
+        if (userIsLive) {
+            streamHtml = `<span style="
+                display: inline-block;
+                width: 36px;
+                text-align: center;
+                background: var(--color-red, #eb3456);
+                color: var(--color-white, #fff);
+                border-radius: 4px;
+                text-transform: uppercase;
+                font-size: 10px;
+                font-weight: 600;
+                letter-spacing: 0.1em;
+                padding: 3px 0 2px 0;
+            ">Live</span>`;
+        } else if (user.stream) {
+            streamHtml = `<span style="color: #888; font-size: 12px;">watching </span><a href="/${user.stream}" target="_blank" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
+        } else {
+            streamHtml = `<span style="color: #888; font-size: 12px;">online</span>`;
+        }
 
         const timeAgo = getTimeAgo(user.lastSeen);
 
@@ -225,7 +253,7 @@ async function renderOnlineUsers(forceRefresh = false) {
                             border: 2px solid #2a2a2a;
                         "></div>
                     </div>
-                    <div style="display: flex; flex-direction: column;">
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
                         <span style="color: #fff; font-size: 14px;">${user.username}</span>
                         ${streamHtml}
                     </div>
