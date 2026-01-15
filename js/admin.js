@@ -394,6 +394,66 @@ function openAdminPanel() {
         hiddenArrow.textContent = isHidden ? '▼' : '▶';
     });
 
+    // Feature Toggles (Kill Switches) dropdown toggle
+    const featureTogglesToggle = document.getElementById('feature-toggles-toggle');
+    const featureTogglesContent = document.getElementById('feature-toggles-content');
+    const featureTogglesArrow = document.getElementById('feature-toggles-arrow');
+
+    if (featureTogglesToggle && featureTogglesContent && featureTogglesArrow) {
+        featureTogglesToggle.addEventListener('click', () => {
+            const isHidden = featureTogglesContent.style.display === 'none';
+            featureTogglesContent.style.display = isHidden ? 'block' : 'none';
+            featureTogglesArrow.textContent = isHidden ? '▼' : '▶';
+        });
+
+        // Helper to update toggle visual state
+        const updateToggleVisual = (checkbox, slider, dot) => {
+            if (checkbox.checked) {
+                slider.style.backgroundColor = '#22c55e'; // Green = enabled
+                dot.style.transform = 'translateX(22px)';
+            } else {
+                slider.style.backgroundColor = '#ef4444'; // Red = disabled
+                dot.style.transform = 'translateX(0)';
+            }
+        };
+
+        // Auto Chest kill switch
+        const autoChestCheckbox = document.getElementById('killswitch-auto-chest');
+        const autoChestSlider = document.getElementById('killswitch-auto-chest-slider');
+        const autoChestDot = document.getElementById('killswitch-auto-chest-dot');
+
+        if (autoChestCheckbox && autoChestSlider && autoChestDot) {
+            // Set initial state
+            autoChestCheckbox.checked = globalAutoChestEnabled;
+            updateToggleVisual(autoChestCheckbox, autoChestSlider, autoChestDot);
+
+            // Handle toggle changes
+            autoChestCheckbox.addEventListener('change', async () => {
+                globalAutoChestEnabled = autoChestCheckbox.checked;
+                updateToggleVisual(autoChestCheckbox, autoChestSlider, autoChestDot);
+                await saveSettingsToFirebase();
+            });
+        }
+
+        // Auto Missions kill switch
+        const autoMissionsCheckbox = document.getElementById('killswitch-auto-missions');
+        const autoMissionsSlider = document.getElementById('killswitch-auto-missions-slider');
+        const autoMissionsDot = document.getElementById('killswitch-auto-missions-dot');
+
+        if (autoMissionsCheckbox && autoMissionsSlider && autoMissionsDot) {
+            // Set initial state
+            autoMissionsCheckbox.checked = globalAutoMissionsEnabled;
+            updateToggleVisual(autoMissionsCheckbox, autoMissionsSlider, autoMissionsDot);
+
+            // Handle toggle changes
+            autoMissionsCheckbox.addEventListener('change', async () => {
+                globalAutoMissionsEnabled = autoMissionsCheckbox.checked;
+                updateToggleVisual(autoMissionsCheckbox, autoMissionsSlider, autoMissionsDot);
+                await saveSettingsToFirebase();
+            });
+        }
+    }
+
     // My Settings toggle
     const mySettingsToggle = document.getElementById('my-settings-toggle');
     const mySettingsContent = document.getElementById('my-settings-content');
