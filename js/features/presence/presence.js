@@ -58,6 +58,13 @@ function getCurrentStreamInfo() {
         return { stream: null, url: null, isGuesting: false };
     }
 
+    // Check if "broadcast not found" toast is showing - stream is dead
+    const deadStreamToast = document.querySelector('.toast-error .toast-title[aria-label*="broadcast could not be found"]');
+    if (deadStreamToast) {
+        presenceLog('getCurrentStreamInfo: Dead stream toast detected, not reporting as watching');
+        return { stream: null, url: null, isGuesting: false };
+    }
+
     // Only report "watching" if the broadcaster is actually live
     const isLive = document.querySelector('.broadcaster-is-online') !== null;
     if (!isLive) {
