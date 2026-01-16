@@ -223,8 +223,12 @@ async function renderOnlineUsers(forceRefresh = false) {
         return;
     }
 
-    // Sort users: live broadcasters first, then viewers watching streams, then idle
-    const sortedUsers = [...displayUsers].sort((a, b) => {
+    // Split users into online (<1 hour) and offline (1+ hours)
+    const onlineUsers = displayUsers.filter(user => getIdleTime(user) < 3600000);
+    const offlineUsers = displayUsers.filter(user => getIdleTime(user) >= 3600000);
+
+    // Sort online users: live first, then watching, then by most recent activity
+    const sortedOnlineUsers = [...onlineUsers].sort((a, b) => {
         const aLive = isLive(a);
         const bLive = isLive(b);
         // Live broadcasters first
@@ -235,18 +239,23 @@ async function renderOnlineUsers(forceRefresh = false) {
         const bWatching = shouldShowWatching(b);
         if (aWatching && !bWatching) return -1;
         if (!aWatching && bWatching) return 1;
-        return 0;
+        // Then sort by most recently seen
+        return getIdleTime(a) - getIdleTime(b);
+    });
+
+    // Sort offline users by most recently seen (least idle first)
+    const sortedOfflineUsers = [...offlineUsers].sort((a, b) => {
+        return getIdleTime(a) - getIdleTime(b);
     });
 
     // Helper: check if we should show the right-side timestamp
     // Only show for users we're actively monitoring (live, watching, or recently active)
-    // For idle users beyond threshold, "idle for Xh" on left already tells the story
     const shouldShowTimestamp = (user) => {
         return isLive(user) || shouldShowWatching(user) || isRecentlyActive(user);
     };
 
-    // Render user list
-    container.innerHTML = sortedUsers.map(user => {
+    // Helper: render a single user row
+    const renderUserRow = (user, isOffline = false) => {
         const idleTime = getIdleTime(user);
 
         // Show "LIVE" badge if broadcasting, otherwise show stream info or idle status
@@ -271,10 +280,10 @@ async function renderOnlineUsers(forceRefresh = false) {
             // Show "watching/guesting" - broadcaster is verified live
             const action = user.isGuesting ? 'guesting' : 'watching';
             streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
-        } else if (idleTime >= 3600000) {
-            // Idle 1+ hour - "idle for Xh"
+        } else if (isOffline) {
+            // Offline users (1+ hours) - "last online Xh ago"
             const hours = Math.floor(idleTime / 3600000);
-            streamHtml = `<span style="color: #666; font-size: 12px;">idle for ${hours}h</span>`;
+            streamHtml = `<span style="color: #666; font-size: 12px;">last online ${hours}h ago</span>`;
         } else if (idleTime >= 600000) {
             // Idle 10-60 min - show actual minutes
             const minutes = Math.floor(idleTime / 60000);
@@ -284,10 +293,13 @@ async function renderOnlineUsers(forceRefresh = false) {
             streamHtml = `<span style="color: #888; font-size: 12px;">online</span>`;
         }
 
-        // Only show timestamp for users we're actively monitoring
-        const timeAgoHtml = shouldShowTimestamp(user)
+        // Only show timestamp for users we're actively monitoring (not offline)
+        const timeAgoHtml = !isOffline && shouldShowTimestamp(user)
             ? `<span style="color: #888; font-size: 11px;">${getTimeAgo(user.lastSeen)}</span>`
             : '';
+
+        // Online indicator dot - green for online, gray for offline
+        const dotColor = isOffline ? '#666' : '#08d687';
 
         return `
             <div style="
@@ -313,7 +325,7 @@ async function renderOnlineUsers(forceRefresh = false) {
                             right: 0;
                             width: 10px;
                             height: 10px;
-                            background: #08d687;
+                            background: ${dotColor};
                             border-radius: 50%;
                             border: 2px solid #2a2a2a;
                         "></div>
@@ -326,7 +338,46 @@ async function renderOnlineUsers(forceRefresh = false) {
                 ${timeAgoHtml}
             </div>
         `;
-    }).join('');
+    };
+
+    // Build HTML with separate sections
+    let html = '';
+
+    // Online Users section
+    if (sortedOnlineUsers.length > 0) {
+        html += sortedOnlineUsers.map(user => renderUserRow(user, false)).join('');
+    } else {
+        html += '<p style="color: #888; font-size: 13px; margin-bottom: 12px;">No users currently online</p>';
+    }
+
+    // Offline Users section (collapsible)
+    if (sortedOfflineUsers.length > 0) {
+        html += `
+            <div style="margin-top: 16px; border-top: 1px solid #444; padding-top: 12px;">
+                <div id="offline-users-toggle" style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+                    <span id="offline-users-arrow" style="color: #888; font-size: 10px;">▶</span>
+                    <span style="color: #888; font-size: 12px; font-weight: 600;">Offline Users</span>
+                </div>
+                <div id="offline-users-list" style="display: none;">
+                    ${sortedOfflineUsers.map(user => renderUserRow(user, true)).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+
+    // Add toggle handler for offline section
+    const offlineToggle = container.querySelector('#offline-users-toggle');
+    const offlineList = container.querySelector('#offline-users-list');
+    const offlineArrow = container.querySelector('#offline-users-arrow');
+    if (offlineToggle && offlineList && offlineArrow) {
+        offlineToggle.addEventListener('click', () => {
+            const isHidden = offlineList.style.display === 'none';
+            offlineList.style.display = isHidden ? 'block' : 'none';
+            offlineArrow.textContent = isHidden ? '▼' : '▶';
+        });
+    }
 
     activeUsersLog('renderOnlineUsers: Render complete');
 }
