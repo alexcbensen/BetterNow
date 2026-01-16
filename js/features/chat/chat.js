@@ -491,5 +491,119 @@ function observeAudience() {
     }
 }
 
+// ============ Explore Page Styling ============
+// Apply friend styling (text color, level badge) to users on explore page
+
+function applyExploreStyles() {
+    // Only run on explore page
+    if (!window.location.pathname.includes('/explore')) return;
+
+    // Check if friendSettings is loaded
+    if (typeof friendSettings === 'undefined' || typeof friendUsers === 'undefined') return;
+
+    // Build a map of username -> odiskd for quick lookup
+    const usernameToOdiskd = {};
+    for (const [odiskd, userData] of Object.entries(friendUsers)) {
+        if (userData.username) {
+            usernameToOdiskd[userData.username.toLowerCase()] = odiskd;
+        }
+    }
+
+    // Find all username elements on explore page (in stream cards)
+    // Target: h3.username > span.truncate (the actual username text)
+    document.querySelectorAll('h3.username').forEach(usernameHeader => {
+        const truncateSpan = usernameHeader.querySelector('span.truncate');
+        if (!truncateSpan) return;
+
+        const username = truncateSpan.textContent.trim();
+        const odiskd = usernameToOdiskd[username.toLowerCase()];
+
+        if (!odiskd) return; // Not a friend
+
+        const settings = friendSettings[odiskd];
+        if (!settings) return;
+
+        // Skip if already styled
+        if (usernameHeader.hasAttribute('data-betternow-styled')) return;
+        usernameHeader.setAttribute('data-betternow-styled', 'true');
+
+        // Apply text color to username
+        if (settings.textColor) {
+            truncateSpan.style.setProperty('color', settings.textColor, 'important');
+        }
+
+        // Apply level badge styling
+        if (settings.levelEnabled && settings.levelColor1) {
+            const levelBadge = usernameHeader.querySelector('app-user-level .user-level');
+            if (levelBadge) {
+                if (settings.levelColor2) {
+                    levelBadge.style.background = `linear-gradient(115.62deg, ${settings.levelColor1} 17.43%, ${settings.levelColor2} 84.33%)`;
+                } else {
+                    levelBadge.style.background = settings.levelColor1;
+                }
+                levelBadge.style.borderRadius = '8px';
+            }
+        }
+    });
+}
+
+// Throttle explore styles
+let exploreStylesThrottleTimer = null;
+const EXPLORE_STYLES_THROTTLE_MS = 500;
+
+function throttledApplyExploreStyles() {
+    if (exploreStylesThrottleTimer) return;
+
+    applyExploreStyles();
+
+    exploreStylesThrottleTimer = setTimeout(() => {
+        exploreStylesThrottleTimer = null;
+    }, EXPLORE_STYLES_THROTTLE_MS);
+}
+
+// Observe explore page for changes
+function observeExplorePage() {
+    // Only on explore page
+    if (!window.location.pathname.includes('/explore')) return;
+
+    const mainContent = document.querySelector('app-explore') || document.querySelector('main') || document.body;
+
+    if (mainContent && !mainContent.hasAttribute('data-betternow-explore-observing')) {
+        const exploreObserver = new MutationObserver(() => {
+            throttledApplyExploreStyles();
+        });
+        exploreObserver.observe(mainContent, { childList: true, subtree: true });
+        mainContent.setAttribute('data-betternow-explore-observing', 'true');
+
+        // Initial application
+        applyExploreStyles();
+    }
+}
+
+// Initialize explore page styling when navigating
+function initExploreStyles() {
+    // Run on page load if on explore
+    if (window.location.pathname.includes('/explore')) {
+        // Wait a moment for DOM to be ready
+        setTimeout(() => {
+            observeExplorePage();
+            applyExploreStyles();
+        }, 500);
+    }
+
+    // Listen for SPA navigation
+    window.addEventListener('betternow:navigation', () => {
+        if (window.location.pathname.includes('/explore')) {
+            setTimeout(() => {
+                observeExplorePage();
+                applyExploreStyles();
+            }, 500);
+        }
+    });
+}
+
+// Call on load
+initExploreStyles();
+
 // Call on load (will be called again after Firebase loads)
 initOnlineIndicatorStyle();
