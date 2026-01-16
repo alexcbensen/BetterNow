@@ -223,9 +223,13 @@ async function renderOnlineUsers(forceRefresh = false) {
         return;
     }
 
-    // Split users into online (<1 hour) and offline (1+ hours)
-    const onlineUsers = displayUsers.filter(user => getIdleTime(user) < 3600000);
-    const offlineUsers = displayUsers.filter(user => getIdleTime(user) >= 3600000);
+    // Split users into online (live, watching, or <10 min idle) and offline (10+ min idle)
+    const onlineUsers = displayUsers.filter(user =>
+        isLive(user) || shouldShowWatching(user) || isRecentlyActive(user)
+    );
+    const offlineUsers = displayUsers.filter(user =>
+        !isLive(user) && !shouldShowWatching(user) && !isRecentlyActive(user)
+    );
 
     // Sort online users: live first, then watching, then by most recent activity
     const sortedOnlineUsers = [...onlineUsers].sort((a, b) => {
@@ -281,13 +285,14 @@ async function renderOnlineUsers(forceRefresh = false) {
             const action = user.isGuesting ? 'guesting' : 'watching';
             streamHtml = `<span style="color: #888; font-size: 12px;">${action} </span><a href="/${user.stream}" style="color: #888; font-size: 12px; text-decoration: none;">${user.stream}</a>`;
         } else if (isOffline) {
-            // Offline users (1+ hours) - "last online Xh ago"
-            const hours = Math.floor(idleTime / 3600000);
-            streamHtml = `<span style="color: #666; font-size: 12px;">last online ${hours}h ago</span>`;
-        } else if (idleTime >= 600000) {
-            // Idle 10-60 min - show actual minutes
-            const minutes = Math.floor(idleTime / 60000);
-            streamHtml = `<span style="color: #888; font-size: 12px;">last seen ${minutes}m ago</span>`;
+            // Offline users (10+ min idle) - "last seen Xm/Xh ago"
+            if (idleTime >= 3600000) {
+                const hours = Math.floor(idleTime / 3600000);
+                streamHtml = `<span style="color: #666; font-size: 12px;">last seen ${hours}h ago</span>`;
+            } else {
+                const minutes = Math.floor(idleTime / 60000);
+                streamHtml = `<span style="color: #666; font-size: 12px;">last seen ${minutes}m ago</span>`;
+            }
         } else {
             // Idle < 10 min - "online"
             streamHtml = `<span style="color: #888; font-size: 12px;">online</span>`;
