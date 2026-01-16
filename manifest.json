@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Alex's BetterNow",
-  "version": "2.5.1",
+  "version": "2.5.3",
   "icons": {
     "16": "icons/favicon-1.png",
     "48": "icons/favicon-2.png",
@@ -33,7 +33,8 @@
         "js/features/chat/chat.js",
         "js/features/chest/chest.js",
         "js/features/explore/explore.js",
-        "js/features/missions/missions.js",
+        "js/features/auto-claim/missions.js",
+        "js/features/auto-claim/daily-streak.js",
         "js/features/volume/volume.js",
         "js/features/auto-confirm/auto-confirm.js",
         "js/firebase.js",
@@ -51,7 +52,6 @@
         "js/features/filter-bypass/filter-bypass.js",
         "js/features/navigation/navigation-interceptor.js",
         "js/features/explore/ws-blocker.js",
-        "js/features/missions/tdi-capture.js",
         "js/features/volume/volume-protection.js"
       ],
       "matches": ["https://www.younow.com/*", "https://younow.com/*"]
