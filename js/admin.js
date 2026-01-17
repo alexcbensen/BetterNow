@@ -370,29 +370,23 @@ function openAdminPanel() {
     document.body.appendChild(overlay);
 
     // Populate lists
-    renderFriendUsernames();
+    renderBetterNowUsers();
     renderHiddenBroadcasters();
 
     // Setup Online Users section (fetches count immediately)
     setupOnlineUsersSection();
 
-    // Friend Usernames dropdown toggle
-    const friendToggle = document.getElementById('friend-usernames-toggle');
-    const friendContent = document.getElementById('friend-usernames-content');
-    const friendArrow = document.getElementById('friend-usernames-arrow');
+    // BetterNow Users dropdown toggle
+    const betternowToggle = document.getElementById('betternow-users-toggle');
+    const betternowContent = document.getElementById('betternow-users-content');
+    const betternowArrow = document.getElementById('betternow-users-arrow');
 
-    if (friendToggle && friendContent && friendArrow) {
-        friendToggle.addEventListener('click', () => {
-            const isHidden = friendContent.style.display === 'none';
-            friendContent.style.display = isHidden ? 'block' : 'none';
-            friendArrow.textContent = isHidden ? '▼' : '▶';
+    if (betternowToggle && betternowContent && betternowArrow) {
+        betternowToggle.addEventListener('click', () => {
+            const isHidden = betternowContent.style.display === 'none';
+            betternowContent.style.display = isHidden ? 'block' : 'none';
+            betternowArrow.textContent = isHidden ? '▼' : '▶';
         });
-    }
-
-    // Update friend count badge
-    const friendCountEl = document.getElementById('friend-usernames-count');
-    if (friendCountEl) {
-        friendCountEl.textContent = friendUserIds.length;
     }
 
     // Hidden broadcasters dropdown toggle
@@ -464,134 +458,6 @@ function openAdminPanel() {
                 await saveSettingsToFirebase();
             });
         }
-    }
-
-    // My Settings toggle
-    const mySettingsToggle = document.getElementById('my-settings-toggle');
-    const mySettingsContent = document.getElementById('my-settings-content');
-    const mySettingsArrow = document.getElementById('my-settings-arrow');
-
-    if (mySettingsToggle && mySettingsContent && mySettingsArrow) {
-        mySettingsToggle.addEventListener('click', () => {
-            const isHidden = mySettingsContent.style.display === 'none';
-            mySettingsContent.style.display = isHidden ? 'block' : 'none';
-            mySettingsArrow.textContent = isHidden ? '▼' : '▶';
-        });
-
-        // Populate my settings fields
-        document.getElementById('my-border-enabled').checked = mySettings.borderEnabled || false;
-        document.getElementById('my-border-color1').value = mySettings.borderColor1 || '';
-        document.getElementById('my-border-color2').value = mySettings.borderColor2 || '';
-        document.getElementById('my-text-enabled').checked = !!mySettings.textColor;
-        document.getElementById('my-text-color').value = mySettings.textColor || '';
-        document.getElementById('my-level-enabled').checked = mySettings.levelEnabled || false;
-        document.getElementById('my-level-color1').value = mySettings.levelColor1 || '';
-        document.getElementById('my-level-color2').value = mySettings.levelColor2 || '';
-        document.getElementById('my-frame-enabled').checked = mySettings.frameEnabled || false;
-        document.getElementById('my-frame-url').value = mySettings.frameUrl || '';
-
-        // Update color previews
-        const updateMyPreview = (inputId, previewId) => {
-            const input = document.getElementById(inputId);
-            const preview = document.getElementById(previewId);
-            if (input && preview) {
-                const value = normalizeHex(input.value);
-                if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
-                    preview.style.background = value;
-                }
-                input.addEventListener('input', () => {
-                    const val = normalizeHex(input.value);
-                    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                        preview.style.background = val;
-                    }
-                });
-            }
-        };
-
-        updateMyPreview('my-border-color1', 'my-border-preview1');
-        updateMyPreview('my-border-color2', 'my-border-preview2');
-        updateMyPreview('my-text-color', 'my-text-preview');
-        updateMyPreview('my-level-color1', 'my-level-preview1');
-        updateMyPreview('my-level-color2', 'my-level-preview2');
-
-        // Frame preview handling
-        const frameUrlInput = document.getElementById('my-frame-url');
-        const framePreview = document.getElementById('my-frame-preview');
-        const framePreviewImg = document.getElementById('my-frame-preview-img');
-
-        const showFramePreview = (url) => {
-            if (url) {
-                framePreviewImg.src = url;
-                framePreview.style.display = 'flex';
-                framePreview.dataset.frameUrl = url;
-                frameUrlInput.style.display = 'none';
-            } else {
-                framePreview.style.display = 'none';
-                frameUrlInput.style.display = 'block';
-            }
-        };
-
-        // Initialize frame preview if we have a URL
-        if (mySettings.frameUrl) {
-            showFramePreview(mySettings.frameUrl);
-        }
-
-        // Listen for paste/input on frame URL
-        frameUrlInput.addEventListener('input', () => {
-            const url = frameUrlInput.value.trim();
-            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-                // Store the URL in data attribute and show preview
-                framePreview.dataset.frameUrl = url;
-                showFramePreview(url);
-                frameUrlInput.value = '';
-            }
-        });
-
-        // Click on preview to change
-        framePreview.addEventListener('click', () => {
-            framePreview.style.display = 'none';
-            frameUrlInput.style.display = 'block';
-            frameUrlInput.focus();
-        });
-
-        // Save my settings button
-        document.getElementById('save-my-settings').addEventListener('click', async () => {
-            const btn = document.getElementById('save-my-settings');
-
-            const borderEnabled = document.getElementById('my-border-enabled').checked;
-            const borderColor1 = normalizeHex(document.getElementById('my-border-color1').value.trim());
-            const borderColor2 = normalizeHex(document.getElementById('my-border-color2').value.trim());
-            const textEnabled = document.getElementById('my-text-enabled').checked;
-            const textColor = normalizeHex(document.getElementById('my-text-color').value.trim());
-            const levelEnabled = document.getElementById('my-level-enabled').checked;
-            const levelColor1 = normalizeHex(document.getElementById('my-level-color1').value.trim());
-            const levelColor2 = normalizeHex(document.getElementById('my-level-color2').value.trim());
-            const frameEnabled = document.getElementById('my-frame-enabled').checked;
-
-            // Get frame URL from preview data attribute, or input, or existing settings
-            const framePreview = document.getElementById('my-frame-preview');
-            const frameUrlInput = document.getElementById('my-frame-url');
-            const frameUrl = framePreview.dataset.frameUrl || frameUrlInput.value.trim() || mySettings.frameUrl || '';
-
-            mySettings = {
-                borderEnabled: borderEnabled,
-                borderColor1: borderEnabled ? borderColor1 : '',
-                borderColor2: borderEnabled ? borderColor2 : '',
-                textColor: textEnabled ? textColor : '',
-                levelEnabled: levelEnabled,
-                levelColor1: levelEnabled ? levelColor1 : '',
-                levelColor2: levelEnabled ? levelColor2 : '',
-                frameEnabled: frameEnabled,
-                frameUrl: frameEnabled ? frameUrl : ''
-            };
-
-            await saveSettingsToFirebase();
-            applyChatStyles();
-
-            // Visual feedback
-            btn.textContent = 'Saved!';
-            setTimeout(() => { btn.textContent = 'Save My Style'; }, 1000);
-        });
     }
 
     // BetterNow User Style toggle
@@ -775,68 +641,6 @@ function openAdminPanel() {
         overlay.remove();
     });
 
-    // Add friend username
-    const addFriendBtn = document.getElementById('add-friend-btn');
-    const friendInput = document.getElementById('friend-username-input');
-
-    addFriendBtn.addEventListener('click', async () => {
-        const username = friendInput.value.trim();
-        const statusEl = document.getElementById('admin-save-status');
-
-        if (!username) return;
-
-        // Fetch user info from YouNow API
-        statusEl.style.display = 'block';
-        statusEl.style.color = '#888';
-        statusEl.textContent = 'Looking up user...';
-
-        try {
-            const response = await fetch(`https://cdn.younow.com/php/api/channel/getInfo/user=${username}`);
-            const data = await response.json();
-
-            // Only fail if there's no userId at all
-            if (!data.userId) {
-                statusEl.style.color = '#ef4444';
-                statusEl.textContent = `User "${username}" not found`;
-                setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
-                return;
-            }
-
-            const odiskd = String(data.userId);
-
-            // Check for duplicate by userId
-            if (friendUserIds.includes(odiskd)) {
-                statusEl.style.color = '#ef4444';
-                statusEl.textContent = `"${data.profile || username}" is already in friends list`;
-                setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
-                return;
-            }
-
-            // Store user data
-            const correctUsername = data.profile || username;
-            const profileImage = `https://ynassets.younow.com/user/live/${data.userId}/${data.userId}.jpg`;
-
-            friendUserIds.push(odiskd);
-            friendUsers[odiskd] = {
-                username: correctUsername,
-                avatar: profileImage
-            };
-
-            renderFriendUsernames();
-            friendInput.value = '';
-            await saveSettingsToFirebase();
-
-            statusEl.style.display = 'none';
-        } catch (error) {
-            statusEl.style.color = '#ef4444';
-            statusEl.textContent = 'Error looking up user';
-            setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
-        }
-    });
-    friendInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addFriendBtn.click();
-    });
-
     // Add hidden broadcaster
     const addHiddenBtn = document.getElementById('add-hidden-btn');
     const hiddenInput = document.getElementById('hidden-broadcaster-input');
@@ -909,15 +713,114 @@ function openAdminPanel() {
     });
 }
 
-function renderFriendUsernames() {
-    const container = document.getElementById('friend-usernames-list');
+// Helper to format "last used" time
+function formatLastUsed(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const days = Math.floor(diff / 86400000);
+
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) {
+        return new Date(timestamp).toLocaleDateString('en-US', { weekday: 'long' });
+    }
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// BetterNow Users list - auto-populated from presence data
+async function renderBetterNowUsers() {
+    const container = document.getElementById('betternow-users-list');
     if (!container) return;
 
-    container.innerHTML = friendUserIds.map((odiskd, index) => {
-        const userData = friendUsers[odiskd] || {};
-        const username = userData.username || odiskd;
-        const avatar = userData.avatar || '';
-        const settings = friendSettings[odiskd] || {};
+    // Show loading state
+    container.innerHTML = '<p style="color: #888; font-size: 13px;">Loading users...</p>';
+
+    // Fetch users from presence data
+    let users = [];
+    try {
+        users = await fetchOnlineUsers();
+    } catch (e) {
+        container.innerHTML = '<p style="color: #ef4444; font-size: 13px;">Error loading users</p>';
+        return;
+    }
+
+    // Also include users from friendUserIds who may not be in presence data (for backward compat)
+    const presenceOdiskds = new Set(users.map(u => u.odiskd));
+    friendUserIds.forEach(odiskd => {
+        if (!presenceOdiskds.has(odiskd)) {
+            const userData = friendUsers[odiskd] || {};
+            users.push({
+                odiskd: odiskd,
+                username: userData.username || odiskd,
+                avatar: userData.avatar || '',
+                lastSeen: 0,
+                firstSeen: 0,
+                version: 'Unknown',
+                platform: 'Unknown'
+            });
+        }
+    });
+
+    // Ensure current user is in the list (for "My Chat Style" in BetterNow Users)
+    if (currentUserId && !presenceOdiskds.has(currentUserId) && !friendUserIds.includes(currentUserId)) {
+        // Get current user's username from cache or profile dropdown
+        let myUsername = cachedUsername || 'You';
+        const profileDropdown = document.querySelector('app-profile-dropdown .username');
+        if (profileDropdown && profileDropdown.textContent.trim()) {
+            myUsername = profileDropdown.textContent.trim();
+        }
+        users.push({
+            odiskd: currentUserId,
+            username: myUsername,
+            avatar: `https://ynassets.younow.com/user/live/${currentUserId}/${currentUserId}.jpg`,
+            lastSeen: Date.now(),
+            firstSeen: Date.now(),
+            version: chrome.runtime.getManifest().version,
+            platform: 'Current'
+        });
+    }
+
+    // Update count badge
+    const countEl = document.getElementById('betternow-users-count');
+    if (countEl) {
+        countEl.textContent = users.length;
+    }
+
+    if (users.length === 0) {
+        container.innerHTML = '<p style="color: #888; font-size: 13px;">No users found. Users will appear here as they use BetterNow.</p>';
+        return;
+    }
+
+    // Sort by lastSeen (most recent first), but put current user at top, then BetterNow_Extension
+    users.sort((a, b) => {
+        // Current user always first
+        if (a.odiskd === currentUserId) return -1;
+        if (b.odiskd === currentUserId) return 1;
+        // BetterNow_Extension second
+        const aIsBetterNow = a.username?.toLowerCase() === 'betternow_extension';
+        const bIsBetterNow = b.username?.toLowerCase() === 'betternow_extension';
+        if (aIsBetterNow && !bIsBetterNow) return -1;
+        if (bIsBetterNow && !aIsBetterNow) return 1;
+        return b.lastSeen - a.lastSeen;
+    });
+
+    // 7-day threshold for active/inactive
+    const ACTIVE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    container.innerHTML = users.map((user, index) => {
+        const odiskd = user.odiskd;
+        const username = user.username || odiskd;
+        const avatar = user.avatar || '';
+        const lastSeen = user.lastSeen || 0;
+        const version = user.version || 'Unknown';
+        const platform = user.platform || 'Unknown';
+        const isActive = lastSeen > 0 && (now - lastSeen) < ACTIVE_THRESHOLD_MS;
+        const lastUsedText = lastSeen > 0 ? formatLastUsed(lastSeen) : 'Never';
+        const isCurrentUser = odiskd === currentUserId;
+
+        // For current user, use mySettings; for others, use userSettings
+        const settings = isCurrentUser ? (mySettings || {}) : (userSettings[odiskd] || {});
         const features = grantedFeatures[odiskd] || [];
         const hasFilterBypass = features.includes('filterBypass');
         const hasAutoChest = features.includes('autoChest');
@@ -955,18 +858,22 @@ function renderFriendUsernames() {
                     background: #444;
                     display: ${avatar ? 'block' : 'none'};
                 " onerror="this.style.display='none'" />
-                <span style="color: white;">${username}</span>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                    <span style="color: white; display: flex; align-items: center; gap: 6px;">
+                        ${username}
+                        ${isCurrentUser ? `<span style="
+                            font-size: 9px;
+                            padding: 1px 5px;
+                            border-radius: 4px;
+                            background: #f59e0b;
+                            color: white;
+                            font-weight: 600;
+                        ">YOU</span>` : ''}
+                    </span>
+                    <span style="color: #888; font-size: 11px;">${isCurrentUser ? 'Now' : lastUsedText} · v${version} · ${platform}</span>
+                </div>
             </div>
             <div style="display: flex; gap: 6px;">
-                <button data-refresh-friend="${odiskd}" title="Refresh user" style="
-                    background: #666;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    color: white;
-                    font-size: 12px;
-                    cursor: pointer;
-                ">🔄</button>
                 <button data-features-friend="${odiskd}" title="Feature access" style="
                     background: #8b5cf6;
                     border: none;
@@ -985,15 +892,6 @@ function renderFriendUsernames() {
                     font-size: 12px;
                     cursor: pointer;
                 ">🎨</button>
-                <button data-remove-friend="${index}" style="
-                    background: #ef4444;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    color: white;
-                    font-size: 12px;
-                    cursor: pointer;
-                ">Remove</button>
             </div>
         </div>
         <!-- Features panel for ${odiskd} -->
@@ -1254,6 +1152,37 @@ function renderFriendUsernames() {
                         border: 1px solid #555;
                     "></div>
                 </div>
+                ${isCurrentUser ? `
+                <!-- Avatar frame settings (only for current user) -->
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="frame-enabled-${odiskd}" ${settings.frameEnabled ? 'checked' : ''} style="cursor: pointer;" />
+                    <label style="color: #ccc; font-size: 13px; width: 60px;">Frame:</label>
+                    <input type="text" id="frame-url-${odiskd}" value="" placeholder="Paste image URL" style="
+                        flex: 1;
+                        background: #2a2a2a;
+                        border: 1px solid #444;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        color: white;
+                        font-size: 12px;
+                        display: ${settings.frameUrl ? 'none' : 'block'};
+                    " />
+                    <div id="frame-preview-${odiskd}" data-frame-url="${settings.frameUrl || ''}" style="
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: #2a2a2a;
+                        border: 1px solid #555;
+                        display: ${settings.frameUrl ? 'flex' : 'none'};
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                        cursor: pointer;
+                    " title="Click to change">
+                        <img id="frame-preview-img-${odiskd}" src="${settings.frameUrl || ''}" style="width: 100%; height: 100%; object-fit: contain;" />
+                    </div>
+                </div>
+                ` : ''}
                 <!-- Save button -->
                 <button data-save-settings="${odiskd}" style="
                     background: #22c55e;
@@ -1268,59 +1197,6 @@ function renderFriendUsernames() {
             </div>
         </div>
     `}).join('');
-
-    // Add click handlers for refresh buttons
-    container.querySelectorAll('[data-refresh-friend]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const odiskd = btn.getAttribute('data-refresh-friend');
-            btn.textContent = '...';
-            btn.disabled = true;
-
-            try {
-                // Use channelId endpoint to look up by userId
-                const response = await fetch(`https://cdn.younow.com/php/api/channel/getInfo/channelId=${odiskd}`);
-                const data = await response.json();
-
-                if (data.userId) {
-                    const newUsername = data.profile || data.firstName || friendUsers[odiskd]?.username || odiskd;
-                    const newAvatar = `https://ynassets.younow.com/user/live/${data.userId}/${data.userId}.jpg`;
-
-                    const oldData = friendUsers[odiskd] || {};
-                    const hasChanged = oldData.username !== newUsername || oldData.avatar !== newAvatar;
-
-                    if (hasChanged) {
-                        friendUsers[odiskd] = { username: newUsername, avatar: newAvatar };
-                        await saveSettingsToFirebase();
-                        renderFriendUsernames();
-                    } else {
-                        btn.textContent = '✓';
-                        setTimeout(() => { btn.textContent = '🔄'; btn.disabled = false; }, 1000);
-                    }
-                } else {
-                    btn.textContent = '✗';
-                    setTimeout(() => { btn.textContent = '🔄'; btn.disabled = false; }, 1000);
-                }
-            } catch (e) {
-                console.error('Refresh error:', e);
-                btn.textContent = '✗';
-                setTimeout(() => { btn.textContent = '🔄'; btn.disabled = false; }, 1000);
-            }
-        });
-    });
-
-    // Add click handlers for remove buttons
-    container.querySelectorAll('[data-remove-friend]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const index = parseInt(btn.getAttribute('data-remove-friend'));
-            const odiskd = friendUserIds[index];
-            friendUserIds.splice(index, 1);
-            // Also remove user data and settings
-            delete friendUsers[odiskd];
-            delete friendSettings[odiskd];
-            renderFriendUsernames();
-            await saveSettingsToFirebase();
-        });
-    });
 
     // Add click handlers for settings buttons
     container.querySelectorAll('[data-settings-friend]').forEach(btn => {
@@ -1484,10 +1360,40 @@ function renderFriendUsernames() {
         });
     });
 
+    // Add handlers for frame URL input (current user only)
+    if (currentUserId) {
+        const frameUrlInput = document.getElementById(`frame-url-${currentUserId}`);
+        const framePreview = document.getElementById(`frame-preview-${currentUserId}`);
+        const framePreviewImg = document.getElementById(`frame-preview-img-${currentUserId}`);
+
+        if (frameUrlInput && framePreview && framePreviewImg) {
+            // Listen for paste/input on frame URL
+            frameUrlInput.addEventListener('input', () => {
+                const url = frameUrlInput.value.trim();
+                if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                    // Store the URL in data attribute and show preview
+                    framePreview.dataset.frameUrl = url;
+                    framePreviewImg.src = url;
+                    framePreview.style.display = 'flex';
+                    frameUrlInput.style.display = 'none';
+                    frameUrlInput.value = '';
+                }
+            });
+
+            // Click on preview to change
+            framePreview.addEventListener('click', () => {
+                framePreview.style.display = 'none';
+                frameUrlInput.style.display = 'block';
+                frameUrlInput.focus();
+            });
+        }
+    }
+
     // Add handlers for save buttons
     container.querySelectorAll('[data-save-settings]').forEach(btn => {
         btn.addEventListener('click', async () => {
             const odiskd = btn.getAttribute('data-save-settings');
+            const isCurrentUser = odiskd === currentUserId;
 
             const borderEnabled = document.getElementById(`border-enabled-${odiskd}`)?.checked;
             const borderColor1 = normalizeHex(document.getElementById(`border-color1-${odiskd}`)?.value.trim());
@@ -1498,15 +1404,37 @@ function renderFriendUsernames() {
             const levelColor1 = normalizeHex(document.getElementById(`level-color1-${odiskd}`)?.value.trim());
             const levelColor2 = normalizeHex(document.getElementById(`level-color2-${odiskd}`)?.value.trim());
 
-            friendSettings[odiskd] = {
-                borderEnabled: borderEnabled,
-                borderColor1: borderEnabled ? borderColor1 : '',
-                borderColor2: borderEnabled ? borderColor2 : '',
-                textColor: textEnabled ? textColor : '',
-                levelEnabled: levelEnabled,
-                levelColor1: levelEnabled ? levelColor1 : '',
-                levelColor2: levelEnabled ? levelColor2 : ''
-            };
+            if (isCurrentUser) {
+                // Save to mySettings for current user (includes frame option)
+                const frameEnabled = document.getElementById(`frame-enabled-${odiskd}`)?.checked;
+                const framePreview = document.getElementById(`frame-preview-${odiskd}`);
+                const frameUrlInput = document.getElementById(`frame-url-${odiskd}`);
+                // Get frame URL from preview data attribute, or input, or existing settings
+                const frameUrl = framePreview?.dataset?.frameUrl || frameUrlInput?.value.trim() || mySettings.frameUrl || '';
+
+                mySettings = {
+                    borderEnabled: borderEnabled,
+                    borderColor1: borderEnabled ? borderColor1 : '',
+                    borderColor2: borderEnabled ? borderColor2 : '',
+                    textColor: textEnabled ? textColor : '',
+                    levelEnabled: levelEnabled,
+                    levelColor1: levelEnabled ? levelColor1 : '',
+                    levelColor2: levelEnabled ? levelColor2 : '',
+                    frameEnabled: frameEnabled,
+                    frameUrl: frameEnabled ? frameUrl : ''
+                };
+            } else {
+                // Save to userSettings for other users
+                userSettings[odiskd] = {
+                    borderEnabled: borderEnabled,
+                    borderColor1: borderEnabled ? borderColor1 : '',
+                    borderColor2: borderEnabled ? borderColor2 : '',
+                    textColor: textEnabled ? textColor : '',
+                    levelEnabled: levelEnabled,
+                    levelColor1: levelEnabled ? levelColor1 : '',
+                    levelColor2: levelEnabled ? levelColor2 : ''
+                };
+            }
 
             await saveSettingsToFirebase();
             applyChatStyles();
