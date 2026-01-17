@@ -153,10 +153,22 @@ async function renderOnlineUsers(forceRefresh = false) {
         activeUsersLog('renderOnlineUsers: Got', users.length, 'users');
     }
 
-    // Filter out current user for display count
+    // Build set of hidden broadcaster usernames (lowercase for comparison)
+    const hiddenUsernames = new Set(
+        Object.values(typeof hiddenUsers !== 'undefined' ? hiddenUsers : {})
+            .map(u => u.username?.toLowerCase())
+            .filter(Boolean)
+    );
+
+    // Filter out current user and users watching hidden/blocked broadcasters
     const displayUsers = users.filter(user => {
+        // Filter out current user
         if (typeof currentUserId !== 'undefined' && currentUserId) {
-            return String(user.odiskd) !== String(currentUserId);
+            if (String(user.odiskd) === String(currentUserId)) return false;
+        }
+        // Filter out users watching hidden/blocked broadcasters
+        if (user.stream && hiddenUsernames.has(user.stream.toLowerCase())) {
+            return false;
         }
         return true;
     });
@@ -425,20 +437,6 @@ async function setupOnlineUsersSection() {
             activeUsersLog('setupOnlineUsersSection: Section opened, rendering from cache');
             // Use cached data - don't refetch
             await renderOnlineUsers(false);
-
-            // Auto-refresh every 30 seconds while open
-            activeUsersLog('setupOnlineUsersSection: Starting auto-refresh interval (30s)');
-            onlineUsersRefreshInterval = setInterval(() => {
-                activeUsersLog('setupOnlineUsersSection: Auto-refresh tick');
-                renderOnlineUsers(true); // Force refresh on heartbeat
-            }, 30000);
-        } else {
-            // Stop auto-refresh when closed
-            activeUsersLog('setupOnlineUsersSection: Section closed, stopping auto-refresh');
-            if (onlineUsersRefreshInterval) {
-                clearInterval(onlineUsersRefreshInterval);
-                onlineUsersRefreshInterval = null;
-            }
         }
     });
 
