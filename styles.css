@@ -160,7 +160,8 @@ app-channel .header {
 }
 
 /* Hide native volume control on guest video tiles (not main broadcaster) */
-.fullscreen-wrapper > .video app-volume {
+/* Only target stream pages (app-channel), not explore page carousel */
+app-channel .fullscreen-wrapper > .video app-volume {
     display: none !important;
 }
 

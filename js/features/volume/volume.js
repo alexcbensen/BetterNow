@@ -149,7 +149,8 @@ function createGlobalVolumeSlider() {
     const hasGuests = videoTiles.length > 0;
 
     // Find main broadcaster video
-    const broadcasterVideo = document.querySelector('.video-player video');
+    // Exclude carousel videos - only select stream page broadcaster video
+    const broadcasterVideo = document.querySelector('.video-player video:not(app-broadcasts-carousel video)');
 
     // Remove slider if no broadcaster video
     if (!broadcasterVideo) {
@@ -406,7 +407,8 @@ function applyEarlyVolumes() {
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
     if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
 
-    const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    // Only select tiles on stream pages (app-channel), not carousel
+    const videoTiles = document.querySelectorAll('app-channel .fullscreen-wrapper > .video');
     if (videoTiles.length === 0) return;
 
     let appliedCount = 0;
@@ -454,7 +456,8 @@ let lastGuestUsernames = new Set();
 
 function getCurrentGuestUsernames() {
     const usernames = new Set();
-    document.querySelectorAll('.fullscreen-wrapper > .video').forEach(tile => {
+    // Only select tiles on stream pages (app-channel), not carousel
+    document.querySelectorAll('app-channel .fullscreen-wrapper > .video').forEach(tile => {
         const username = getGuestUsername(tile);
         if (username && username !== 'You') {
             usernames.add(username);
@@ -472,7 +475,8 @@ function setsAreEqual(a, b) {
 }
 
 function setupGuestChangeObserver() {
-    const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
+    // Only observe stream page's fullscreen-wrapper (inside app-channel), not carousel
+    const fullscreenWrapper = document.querySelector('app-channel .fullscreen-wrapper');
     if (!fullscreenWrapper) return;
 
     // Disconnect existing observer if any
@@ -539,7 +543,8 @@ function setupGuestChangeObserver() {
 
 // Wait for video elements to appear in all tiles before calling callback
 function waitForAllTileVideos(callback) {
-    const tiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    // Only select tiles on stream pages (app-channel), not carousel
+    const tiles = document.querySelectorAll('app-channel .fullscreen-wrapper > .video');
 
     if (tiles.length === 0) {
         volumeLog('waitForAllTileVideos: No tiles found, calling callback immediately');
@@ -605,188 +610,203 @@ function waitForAllTileVideos(callback) {
 volumeLog('Running early volume application at startup');
 applyEarlyVolumes();
 
-function createVolumeSliders() {
-    const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
-    if (videoTiles.length === 0) return;
+// Create a volume slider for a single tile
+function createSliderForTile(tile) {
+    // Skip carousel tiles - only create sliders on stream pages (app-channel)
+    if (!tile.closest('app-channel')) {
+        volumeLog('createSliderForTile: Skipping carousel tile');
+        return false;
+    }
 
-    let createdCount = 0;
-    videoTiles.forEach((tile, index) => {
-        // Skip if already has volume slider
-        if (tile.querySelector('.betternow-volume-slider')) return;
+    // Skip if already has volume slider
+    if (tile.querySelector('.betternow-volume-slider')) return false;
 
-        const videoElements = tile.querySelectorAll('video');
-        if (videoElements.length === 0) return;
+    const videoElements = tile.querySelectorAll('video');
+    if (videoElements.length === 0) return false;
 
-        const username = getGuestUsername(tile);
+    const username = getGuestUsername(tile);
 
-        // Skip the user's own tile
-        if (username === 'You') {
-            videoElements.forEach(v => v.muted = true);
-            return;
-        }
+    // Skip the user's own tile
+    if (username === 'You') {
+        videoElements.forEach(v => v.muted = true);
+        return false;
+    }
 
-        const toolbarBottom = tile.querySelector('.video-overlay-bottom .toolbar__right');
-        if (!toolbarBottom) return;
+    const toolbarBottom = tile.querySelector('.video-overlay-bottom .toolbar__right');
+    if (!toolbarBottom) return false;
 
+    let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
+    if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
+
+    let baseVolume = 100;
+    if (username && guestVolumeStates.has(username)) {
+        baseVolume = guestVolumeStates.get(username);
+    }
+
+    const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+
+    videoElements.forEach((videoEl) => {
+        videoEl.volume = effectiveVolume / 100;
+        videoEl.muted = effectiveVolume === 0;
+    });
+
+    // Create volume container matching YouNow's structure
+    const volumeContainer = document.createElement('div');
+    volumeContainer.className = 'betternow-volume-slider toolbar__entry';
+
+    const volumeContent = document.createElement('div');
+    volumeContent.className = 'volume toolbar__content';
+    volumeContent.style.cssText = 'display: flex; align-items: center;';
+
+    // Create slider container (hidden by default, show on hover over icon)
+    const sliderContainer = document.createElement('div');
+    sliderContainer.className = 'volume__range';
+    sliderContainer.style.cssText = 'display: none; margin-right: 8px;';
+
+    // Create slider matching YouNow's
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '100';
+    slider.value = baseVolume.toString();
+    slider.className = 'slider';
+
+    // Create volume button
+    const volumeBtn = document.createElement('button');
+    volumeBtn.className = 'volume__icon only-icon';
+    volumeBtn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 0;';
+
+    // Create volume icon
+    const volumeIcon = document.createElement('i');
+    volumeIcon.className = 'ynicon ynicon-mute';
+
+    // Update video volume when slider changes - apply to ALL videos in tile
+    slider.addEventListener('input', () => {
+        const baseVolume = parseInt(slider.value) || 0;
         let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
         if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
-
-        let baseVolume = 100;
-        if (username && guestVolumeStates.has(username)) {
-            baseVolume = guestVolumeStates.get(username);
-        }
-
         const effectiveVolume = (baseVolume * globalMultiplier) / 100;
+        const effectiveVolumeNormalized = effectiveVolume / 100;
+        const shouldMute = effectiveVolume === 0;
+        const currentUsername = getGuestUsername(tile);
 
-        videoElements.forEach((videoEl) => {
-            videoEl.volume = effectiveVolume / 100;
-            videoEl.muted = effectiveVolume === 0;
+        volumeLog('Individual slider changed for', currentUsername, '| baseVolume:', baseVolume, '| globalMultiplier:', globalMultiplier, '| effectiveVolume:', effectiveVolume);
+
+        // Apply to all videos in this tile with protection
+        tile.querySelectorAll('video').forEach((v, vIndex) => {
+            const oldVol = v.volume;
+            // Update intended volume
+            intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
+            setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
+            volumeLog('Individual slider: Video', vIndex, '- volume:', oldVol.toFixed(2), '→', effectiveVolumeNormalized.toFixed(2), '| muted:', shouldMute);
         });
+        updateVolumeIcon(volumeIcon, slider.value);
 
-        createdCount++;
+        // Save base volume state
+        if (currentUsername) {
+            guestVolumeStates.set(currentUsername, baseVolume);
+            saveGuestVolumes();
+        }
+    });
 
-        // Create volume container matching YouNow's structure
-        const volumeContainer = document.createElement('div');
-        volumeContainer.className = 'betternow-volume-slider toolbar__entry';
-        volumeContainer.style.display = 'none'; // Hidden by default
+    // Toggle mute on icon click - apply to ALL videos in tile
+    volumeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
+        if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
+        const videos = tile.querySelectorAll('video');
+        const firstVideo = videos[0];
+        const currentUsername = getGuestUsername(tile);
 
-        const volumeContent = document.createElement('div');
-        volumeContent.className = 'volume toolbar__content';
-        volumeContent.style.cssText = 'display: flex; align-items: center;';
+        // Check intended state if available, otherwise check actual video state
+        const intendedState = firstVideo ? intendedGuestVolumes.get(firstVideo) : null;
+        const isMuted = intendedState
+            ? (intendedState.muted || intendedState.volume === 0)
+            : (firstVideo && (firstVideo.muted || firstVideo.volume === 0));
 
-        // Create slider container (hidden by default, show on hover over icon)
-        const sliderContainer = document.createElement('div');
-        sliderContainer.className = 'volume__range';
-        sliderContainer.style.cssText = 'display: none; margin-right: 8px;';
-
-        // Create slider matching YouNow's
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = '0';
-        slider.max = '100';
-        slider.value = baseVolume.toString();
-        slider.className = 'slider';
-
-        // Create volume button
-        const volumeBtn = document.createElement('button');
-        volumeBtn.className = 'volume__icon only-icon';
-        volumeBtn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 0;';
-
-        // Create volume icon
-        const volumeIcon = document.createElement('i');
-        volumeIcon.className = 'ynicon ynicon-mute';
-
-        // Update video volume when slider changes - apply to ALL videos in tile
-        slider.addEventListener('input', () => {
-            const baseVolume = parseInt(slider.value) || 0;
-            let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
-            if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
+        if (isMuted) {
+            // Unmuting - restore previous volume or default to 100
+            const savedVolume = currentUsername && guestVolumeStates.has(currentUsername)
+                ? guestVolumeStates.get(currentUsername)
+                : 100;
+            // If saved volume was 0 (muted), restore to 100
+            const baseVolume = savedVolume > 0 ? savedVolume : 100;
             const effectiveVolume = (baseVolume * globalMultiplier) / 100;
             const effectiveVolumeNormalized = effectiveVolume / 100;
-            const shouldMute = effectiveVolume === 0;
-            const currentUsername = getGuestUsername(tile);
-
-            volumeLog('Individual slider changed for', currentUsername, '| baseVolume:', baseVolume, '| globalMultiplier:', globalMultiplier, '| effectiveVolume:', effectiveVolume);
-
-            // Apply to all videos in this tile with protection
-            tile.querySelectorAll('video').forEach((v, vIndex) => {
-                const oldVol = v.volume;
-                // Update intended volume
-                intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: shouldMute });
-                setVideoVolume(v, effectiveVolumeNormalized, shouldMute);
-                volumeLog('Individual slider: Video', vIndex, '- volume:', oldVol.toFixed(2), '→', effectiveVolumeNormalized.toFixed(2), '| muted:', shouldMute);
+            volumeLog('Individual mute toggle: Unmuting', currentUsername, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
+            videos.forEach((v, vIndex) => {
+                intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: false });
+                setVideoVolume(v, effectiveVolumeNormalized, false);
+                volumeLog('Individual unmute: Video', vIndex, '- volume → ', effectiveVolumeNormalized.toFixed(2));
             });
-            updateVolumeIcon(volumeIcon, slider.value);
+            slider.value = baseVolume.toString();
 
-            // Save base volume state
+            // Save the restored volume
             if (currentUsername) {
                 guestVolumeStates.set(currentUsername, baseVolume);
                 saveGuestVolumes();
             }
-        });
+        } else {
+            // Muting - save current volume first, then mute
+            const currentVolume = parseInt(slider.value) || 100;
+            volumeLog('Individual mute toggle: Muting', currentUsername, '| saving volume:', currentVolume);
 
-        // Toggle mute on icon click - apply to ALL videos in tile
-        volumeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
-            if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
-            const videos = tile.querySelectorAll('video');
-            const firstVideo = videos[0];
-            const currentUsername = getGuestUsername(tile);
-
-            // Check intended state if available, otherwise check actual video state
-            const intendedState = firstVideo ? intendedGuestVolumes.get(firstVideo) : null;
-            const isMuted = intendedState
-                ? (intendedState.muted || intendedState.volume === 0)
-                : (firstVideo && (firstVideo.muted || firstVideo.volume === 0));
-
-            if (isMuted) {
-                // Unmuting - restore previous volume or default to 100
-                const savedVolume = currentUsername && guestVolumeStates.has(currentUsername)
-                    ? guestVolumeStates.get(currentUsername)
-                    : 100;
-                // If saved volume was 0 (muted), restore to 100
-                const baseVolume = savedVolume > 0 ? savedVolume : 100;
-                const effectiveVolume = (baseVolume * globalMultiplier) / 100;
-                const effectiveVolumeNormalized = effectiveVolume / 100;
-                volumeLog('Individual mute toggle: Unmuting', currentUsername, '| baseVolume:', baseVolume, '| effectiveVolume:', effectiveVolume);
-                videos.forEach((v, vIndex) => {
-                    intendedGuestVolumes.set(v, { volume: effectiveVolumeNormalized, muted: false });
-                    setVideoVolume(v, effectiveVolumeNormalized, false);
-                    volumeLog('Individual unmute: Video', vIndex, '- volume → ', effectiveVolumeNormalized.toFixed(2));
-                });
-                slider.value = baseVolume.toString();
-
-                // Save the restored volume
-                if (currentUsername) {
-                    guestVolumeStates.set(currentUsername, baseVolume);
-                    saveGuestVolumes();
-                }
-            } else {
-                // Muting - save current volume first, then mute
-                const currentVolume = parseInt(slider.value) || 100;
-                volumeLog('Individual mute toggle: Muting', currentUsername, '| saving volume:', currentVolume);
-
-                // Save current volume before muting (so we can restore it)
-                if (currentUsername && currentVolume > 0) {
-                    guestVolumeStates.set(currentUsername, currentVolume);
-                    saveGuestVolumes();
-                }
-
-                videos.forEach((v, vIndex) => {
-                    intendedGuestVolumes.set(v, { volume: 0, muted: true });
-                    setVideoVolume(v, 0, true);
-                    volumeLog('Individual mute: Video', vIndex, '- muted');
-                });
-                slider.value = '0';
+            // Save current volume before muting (so we can restore it)
+            if (currentUsername && currentVolume > 0) {
+                guestVolumeStates.set(currentUsername, currentVolume);
+                saveGuestVolumes();
             }
-            updateVolumeIcon(volumeIcon, slider.value);
-        });
 
-        // Show slider on hover over the volume control
-        volumeContent.addEventListener('mouseenter', () => {
-            sliderContainer.style.display = 'block';
-        });
+            videos.forEach((v, vIndex) => {
+                intendedGuestVolumes.set(v, { volume: 0, muted: true });
+                setVideoVolume(v, 0, true);
+                volumeLog('Individual mute: Video', vIndex, '- muted');
+            });
+            slider.value = '0';
+        }
+        updateVolumeIcon(volumeIcon, slider.value);
+    });
 
-        volumeContent.addEventListener('mouseleave', () => {
-            sliderContainer.style.display = 'none';
-        });
+    // Show slider on hover over the volume control
+    volumeContent.addEventListener('mouseenter', () => {
+        sliderContainer.style.display = 'block';
+    });
 
-        // Prevent clicks from propagating to video tile
-        volumeContainer.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
+    volumeContent.addEventListener('mouseleave', () => {
+        sliderContainer.style.display = 'none';
+    });
 
-        sliderContainer.appendChild(slider);
-        volumeBtn.appendChild(volumeIcon);
-        volumeContent.appendChild(sliderContainer);
-        volumeContent.appendChild(volumeBtn);
-        volumeContainer.appendChild(volumeContent);
-        toolbarBottom.appendChild(volumeContainer);
+    // Prevent clicks from propagating to video tile
+    volumeContainer.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
 
-        // Set initial icon state (use first video as reference)
-        const firstVideo = videoElements[0];
-        updateVolumeIcon(volumeIcon, firstVideo.muted ? '0' : (firstVideo.volume * 100).toString());
+    sliderContainer.appendChild(slider);
+    volumeBtn.appendChild(volumeIcon);
+    volumeContent.appendChild(sliderContainer);
+    volumeContent.appendChild(volumeBtn);
+    volumeContainer.appendChild(volumeContent);
+    toolbarBottom.appendChild(volumeContainer);
+
+    // Set initial icon state (use first video as reference)
+    const firstVideo = videoElements[0];
+    updateVolumeIcon(volumeIcon, firstVideo.muted ? '0' : (firstVideo.volume * 100).toString());
+
+    volumeLog('createSliderForTile: Created slider for', username);
+    return true;
+}
+
+function createVolumeSliders() {
+    // Only select tiles on stream pages (app-channel), not carousel
+    const videoTiles = document.querySelectorAll('app-channel .fullscreen-wrapper > .video');
+    volumeLog('createVolumeSliders: Found', videoTiles.length, 'video tiles');
+    if (videoTiles.length === 0) return;
+
+    let createdCount = 0;
+    videoTiles.forEach((tile, index) => {
+        if (createSliderForTile(tile)) {
+            createdCount++;
+        }
     });
 
     if (createdCount > 0) {
@@ -796,17 +816,61 @@ function createVolumeSliders() {
 
 // Update volume slider visibility based on tile selection
 function updateVolumeSliderVisibility() {
-    const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    // Only select tiles on stream pages (app-channel), not carousel
+    const videoTiles = document.querySelectorAll('app-channel .fullscreen-wrapper > .video');
+    volumeLog('updateVolumeSliderVisibility: Checking', videoTiles.length, 'tiles');
 
-    videoTiles.forEach(tile => {
-        const volumeSlider = tile.querySelector('.betternow-volume-slider');
-        if (!volumeSlider) return;
+    videoTiles.forEach((tile, index) => {
+        // Never show volume slider on "You" tile (your own video)
+        const username = getGuestUsername(tile);
+        if (username === 'You') {
+            const existingSlider = tile.querySelector('.betternow-volume-slider');
+            if (existingSlider) existingSlider.style.display = 'none';
+            return;
+        }
 
+        // Check if this tile is selected (main)
         const toolbarContainer = tile.querySelector('.toolbar--overlay-container');
-        if (toolbarContainer && toolbarContainer.classList.contains('is-main')) {
-            volumeSlider.style.display = '';
+        const isMainTile = toolbarContainer && toolbarContainer.classList.contains('is-main');
+
+        let volumeSlider = tile.querySelector('.betternow-volume-slider');
+
+        volumeLog('updateVolumeSliderVisibility: Tile', index, '- username:', username, '| isMain:', isMainTile, '| hasSlider:', !!volumeSlider);
+
+        if (isMainTile) {
+            // Check if existing slider is orphaned (parent was replaced by YouNow)
+            if (volumeSlider && !volumeSlider.parentElement) {
+                volumeLog('updateVolumeSliderVisibility: Slider is orphaned, removing reference');
+                volumeSlider = null;
+            }
+
+            // This tile is selected - create slider if it doesn't exist
+            if (!volumeSlider) {
+                volumeLog('updateVolumeSliderVisibility: Creating slider for main tile', username);
+                const created = createSliderForTile(tile);
+                volumeSlider = tile.querySelector('.betternow-volume-slider');
+
+                // If creation failed (toolbar not ready), retry after a short delay
+                if (!created && !volumeSlider) {
+                    volumeLog('updateVolumeSliderVisibility: Slider creation failed, will retry');
+                    setTimeout(() => {
+                        const retrySlider = tile.querySelector('.betternow-volume-slider');
+                        if (!retrySlider) {
+                            volumeLog('updateVolumeSliderVisibility: Retrying slider creation for', username);
+                            createSliderForTile(tile);
+                        }
+                    }, 150);
+                }
+            }
+            if (volumeSlider) {
+                volumeSlider.style.display = '';
+                volumeLog('updateVolumeSliderVisibility: Showing slider for', username);
+            }
         } else {
-            volumeSlider.style.display = 'none';
+            // Not selected - hide slider if it exists
+            if (volumeSlider) {
+                volumeSlider.style.display = 'none';
+            }
         }
     });
 }
@@ -822,19 +886,33 @@ function updateVolumeIcon(icon, value) {
 
 // Watch for selection changes and reapply volumes immediately
 function setupVolumeObserver() {
-    const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
+    // Only observe stream page's fullscreen-wrapper (inside app-channel), not carousel
+    const fullscreenWrapper = document.querySelector('app-channel .fullscreen-wrapper');
     if (!fullscreenWrapper || fullscreenWrapper.dataset.volumeObserver) return;
 
     fullscreenWrapper.dataset.volumeObserver = 'true';
+
+    let pendingVisibilityUpdate = null;
 
     const observer = new MutationObserver((mutations) => {
         mutations.forEach(mutation => {
             if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
                 const target = mutation.target;
+                volumeLog('Observer: Class change on', target.className);
                 if (target.classList.contains('toolbar--overlay-container')) {
+                    volumeLog('Observer: toolbar--overlay-container class change detected, is-main:', target.classList.contains('is-main'));
                     // Selection changed - reapply volumes to ALL tiles and update visibility
                     reapplyAllVolumes();
                     updateVolumeSliderVisibility();
+
+                    // Also schedule a delayed re-check in case YouNow updates the toolbar after
+                    // the class change (which would destroy our slider)
+                    if (pendingVisibilityUpdate) clearTimeout(pendingVisibilityUpdate);
+                    pendingVisibilityUpdate = setTimeout(() => {
+                        pendingVisibilityUpdate = null;
+                        volumeLog('Observer: Delayed visibility update');
+                        updateVolumeSliderVisibility();
+                    }, 200);
                 }
             }
         });
@@ -858,7 +936,8 @@ function reapplyAllVolumes() {
     volumeLog('reapplyAllVolumes: userIsBroadcasting:', userIsBroadcasting);
 
     if (!userIsBroadcasting) {
-        const broadcasterVideo = document.querySelector('.video-player video');
+        // Exclude carousel videos - only select stream page broadcaster video
+    const broadcasterVideo = document.querySelector('.video-player video:not(app-broadcasts-carousel video)');
         volumeLog('reapplyAllVolumes: broadcasterVideo found:', !!broadcasterVideo);
 
         if (broadcasterVideo) {
@@ -904,8 +983,8 @@ function reapplyAllVolumes() {
         }
     }
 
-    // Handle guest tiles
-    const videoTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
+    // Handle guest tiles - only on stream pages (app-channel), not carousel
+    const videoTiles = document.querySelectorAll('app-channel .fullscreen-wrapper > .video');
     volumeLog('reapplyAllVolumes: Found', videoTiles.length, 'guest tiles');
 
     if (videoTiles.length === 0) return;
@@ -1001,7 +1080,7 @@ function resetVolumeControls() {
     document.querySelectorAll('.betternow-volume-label').forEach(el => el.remove());
 
     // Clear fullscreen-wrapper observer flag so it can be re-observed
-    const fullscreenWrapper = document.querySelector('.fullscreen-wrapper');
+    const fullscreenWrapper = document.querySelector('app-channel .fullscreen-wrapper');
     if (fullscreenWrapper) {
         delete fullscreenWrapper.dataset.volumeObserver;
     }
@@ -1027,6 +1106,18 @@ function initVolumeControls() {
     createVolumeSliders();
     updateVolumeSliderVisibility();
     createGlobalVolumeSlider();
+
+    // Re-check visibility after delays to catch late DOM updates
+    // (e.g., when is-main class is added after initial render)
+    setTimeout(() => {
+        createVolumeSliders(); // Create any sliders that weren't ready before
+        updateVolumeSliderVisibility();
+    }, 300);
+
+    setTimeout(() => {
+        createVolumeSliders();
+        updateVolumeSliderVisibility();
+    }, 1000);
 
     // Once we have the global slider created, we're fully initialized
     // The guestChangeObserver will handle future guest join/leave
