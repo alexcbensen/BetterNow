@@ -296,7 +296,7 @@ function applyChatStyles() {
         const username = userData.username;
         if (!username) return;
 
-        const settings = friendSettings[odiskd] || {};
+        const settings = userSettings[odiskd] || {};
 
         document.querySelectorAll(`span[title="${username}"]`).forEach(span => {
             const li = span.closest('li');
@@ -498,8 +498,8 @@ function applyExploreStyles() {
     // Only run on explore page
     if (!window.location.pathname.includes('/explore')) return;
 
-    // Check if friendSettings is loaded
-    if (typeof friendSettings === 'undefined' || typeof friendUsers === 'undefined') return;
+    // Check if userSettings is loaded
+    if (typeof userSettings === 'undefined' || typeof friendUsers === 'undefined') return;
 
     // Build a map of username -> odiskd for quick lookup
     const usernameToOdiskd = {};
@@ -520,7 +520,7 @@ function applyExploreStyles() {
 
         if (!odiskd) return; // Not a friend
 
-        const settings = friendSettings[odiskd];
+        const settings = userSettings[odiskd];
         if (!settings) return;
 
         // Skip if already styled
