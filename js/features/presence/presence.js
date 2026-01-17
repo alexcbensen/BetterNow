@@ -85,13 +85,8 @@ function getCurrentStreamInfo() {
         return { stream: null, url: null, isGuesting: false };
     }
 
-    // Only report "watching" if the broadcaster is actually live
-    const isLive = document.querySelector('.broadcaster-is-online') !== null;
-    if (!isLive) {
-        return { stream: null, url: null, isGuesting: false };
-    }
-
-    // Check if user is guesting (their tile shows "You")
+    // Check if user is guesting FIRST (their tile shows "You")
+    // If guesting, we know the stream is live - no need to check .broadcaster-is-online
     const guestTiles = document.querySelectorAll('.fullscreen-wrapper > .video');
     let isGuesting = false;
     for (const tile of guestTiles) {
@@ -102,10 +97,27 @@ function getCurrentStreamInfo() {
         }
     }
 
+    // If guesting, definitely on a live stream
+    if (isGuesting) {
+        presenceLog('getCurrentStreamInfo: User is guesting, stream is live');
+        return {
+            stream: streamName,
+            url: path,
+            isGuesting: true
+        };
+    }
+
+    // Not guesting - check if broadcaster is online
+    const isLive = document.querySelector('.broadcaster-is-online') !== null;
+    if (!isLive) {
+        presenceLog('getCurrentStreamInfo: broadcaster-is-online not found, not reporting as watching');
+        return { stream: null, url: null, isGuesting: false };
+    }
+
     return {
         stream: streamName,
         url: path,
-        isGuesting: isGuesting
+        isGuesting: false
     };
 }
 
