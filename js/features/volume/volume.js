@@ -401,8 +401,8 @@ function applyEarlyVolumes() {
     // Skip if volume sliders already created (initVolumeControls already ran)
     if (document.querySelector('.betternow-volume-slider')) return;
 
-    // Skip if user is broadcasting (prevents echo)
-    if (isBroadcasting()) return;
+    // Note: We no longer skip when broadcasting - broadcasters can control guest volumes.
+    // The "You" tile is handled separately (muted).
 
     let globalMultiplier = parseInt(localStorage.getItem('betternow-global-guest-multiplier') || '100');
     if (isNaN(globalMultiplier) || globalMultiplier < 0) globalMultiplier = 100;
@@ -1095,11 +1095,9 @@ let volumeInitialized = false;
 function initVolumeControls() {
     volumeLog('initVolumeControls() called');
 
-    // Skip volume controls entirely if user is broadcasting (prevents echo)
-    if (isBroadcasting()) {
-        volumeLog('User is broadcasting, skipping volume controls to prevent echo');
-        return;
-    }
+    // Note: We no longer skip entirely when broadcasting.
+    // Broadcasters can control guest volumes - the "You" tile check
+    // in createSliderForTile() handles muting their own audio.
 
     setupVolumeObserver();
     setupGuestChangeObserver();
