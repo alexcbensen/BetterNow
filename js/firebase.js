@@ -263,8 +263,13 @@ function applyFirebaseSettings() {
     if (firebaseSettings.hiddenExceptions) {
         hiddenExceptions = firebaseSettings.hiddenExceptions;
     }
-    if (firebaseSettings.friendSettings) {
-        friendSettings = firebaseSettings.friendSettings;
+    // Migration: friendSettings -> userSettings
+    // Check userSettings first (new format), fall back to friendSettings (old format)
+    if (firebaseSettings.userSettings) {
+        userSettings = firebaseSettings.userSettings;
+    } else if (firebaseSettings.friendSettings) {
+        // Migrate old friendSettings to userSettings
+        userSettings = firebaseSettings.friendSettings;
     }
     if (firebaseSettings.grantedFeatures) {
         grantedFeatures = firebaseSettings.grantedFeatures;
@@ -456,10 +461,10 @@ async function saveSettingsToFirebase() {
             statusEl.textContent = 'Saving...';
         }
 
-        // Convert friendSettings object to Firestore map format (keyed by odiskd)
-        const friendSettingsMap = {};
-        for (const [odiskd, settings] of Object.entries(friendSettings)) {
-            friendSettingsMap[odiskd] = {
+        // Convert userSettings object to Firestore map format (keyed by odiskd)
+        const userSettingsMap = {};
+        for (const [odiskd, settings] of Object.entries(userSettings)) {
+            userSettingsMap[odiskd] = {
                 mapValue: {
                     fields: {
                         borderEnabled: { booleanValue: settings.borderEnabled || false },
@@ -534,7 +539,7 @@ async function saveSettingsToFirebase() {
         }
 
         const response = await fetch(
-            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle&updateMask.fieldPaths=developerUserIds&updateMask.fieldPaths=adminOnlyUserIds&updateMask.fieldPaths=globalAutoChestEnabled&updateMask.fieldPaths=globalAutoMissionsEnabled`,
+            `${FIRESTORE_BASE_URL}/config/settings?updateMask.fieldPaths=friendUserIds&updateMask.fieldPaths=hiddenUserIds&updateMask.fieldPaths=friendUsers&updateMask.fieldPaths=hiddenUsers&updateMask.fieldPaths=hiddenExceptions&updateMask.fieldPaths=friendSettings&updateMask.fieldPaths=userSettings&updateMask.fieldPaths=grantedFeatures&updateMask.fieldPaths=mySettings&updateMask.fieldPaths=betternowUserStyle&updateMask.fieldPaths=developerUserIds&updateMask.fieldPaths=adminOnlyUserIds&updateMask.fieldPaths=globalAutoChestEnabled&updateMask.fieldPaths=globalAutoMissionsEnabled`,
             {
                 method: 'PATCH',
                 headers: {
@@ -570,7 +575,12 @@ async function saveSettingsToFirebase() {
                         },
                         friendSettings: {
                             mapValue: {
-                                fields: friendSettingsMap
+                                fields: userSettingsMap  // Write to friendSettings for backward compat
+                            }
+                        },
+                        userSettings: {
+                            mapValue: {
+                                fields: userSettingsMap  // New field
                             }
                         },
                         grantedFeatures: {
