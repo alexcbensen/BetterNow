@@ -2,7 +2,7 @@
 // Automatically claims completed daily missions via API
 // Uses TRPX_DEVICE_ID and REQUEST_BY from localStorage (set by YouNow for logged-in users)
 
-const MISSIONS_DEBUG = false;
+const MISSIONS_DEBUG = true;
 
 function missionsLog(...args) {
     if (MISSIONS_DEBUG) {
@@ -20,6 +20,7 @@ function missionsError(...args) {
 
 let missionsAutoClaimEnabled = localStorage.getItem('betternow_missionsAutoClaim') === 'true';
 let missionsObserver = null;
+let missionsBadgeObserver = null;
 let isClaimingMission = false;
 let missionsClaimedCount = 0;
 let lastMissionsCheck = 0;
@@ -344,6 +345,13 @@ async function autoClaimMissions(manualClaimCount = 0) {
         const claimable = getClaimableMissionsFromData(data);
         missionsLog(`autoClaimMissions: Found ${claimable.length} claimable missions`);
 
+        // Debug: log all mission states to diagnose detection issues
+        const allMissions = data.sections?.[0]?.missions || [];
+        if (allMissions.length > 0 && claimable.length === 0) {
+            const states = [...new Set(allMissions.map(m => m.state))];
+            missionsLog('autoClaimMissions: No claimable found. Mission states present:', states.join(', '));
+        }
+
         // Claim all missions via API
         let claimedCount = 0;
         for (const mission of claimable) {
@@ -385,6 +393,49 @@ function isMissionCompletePopupVisible() {
     return false;
 }
 
+// Set up observer specifically for the missions button badge
+function setupMissionsBadgeObserver() {
+    if (missionsBadgeObserver) return;
+
+    const missionsButton = document.querySelector('app-button-daily-missions');
+    if (!missionsButton) {
+        missionsLog('setupMissionsBadgeObserver: Missions button not found, will retry');
+        return false;
+    }
+
+    // Check if badge already exists
+    const existingBadge = missionsButton.querySelector('.topbar-button-badge');
+    if (existingBadge) {
+        missionsLog('Missions badge already present! Triggering auto-claim...');
+        setTimeout(autoClaimMissions, 500);
+    }
+
+    missionsBadgeObserver = new MutationObserver((mutations) => {
+        if (!missionsAutoClaimEnabled || isClaimingMission) return;
+
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.matches?.('.topbar-button-badge') ||
+                        node.querySelector?.('.topbar-button-badge')) {
+                        missionsLog('Missions badge detected! Triggering auto-claim...');
+                        setTimeout(autoClaimMissions, 500);
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    missionsBadgeObserver.observe(missionsButton, {
+        childList: true,
+        subtree: true
+    });
+
+    missionsLog('Badge observer started on missions button');
+    return true;
+}
+
 function setupMissionsObserver() {
     if (missionsObserver) {
         missionsLog('setupMissionsObserver: Already observing');
@@ -392,6 +443,12 @@ function setupMissionsObserver() {
     }
 
     missionsLog('setupMissionsObserver: Starting observer');
+
+    // Try to set up badge observer immediately
+    if (!setupMissionsBadgeObserver()) {
+        // Missions button not found yet, will be set up when it appears
+        missionsLog('Will set up badge observer when missions button appears');
+    }
 
     missionsObserver = new MutationObserver((mutations) => {
         if (!missionsAutoClaimEnabled || isClaimingMission) return;
@@ -411,16 +468,12 @@ function setupMissionsObserver() {
                         }, 100);
                     }
 
-                    // Check for missions badge appearing (indicates claimable missions)
-                    if (node.matches?.('.topbar-button-badge') ||
-                        node.querySelector?.('.topbar-button-badge')) {
-
-                        // Verify it's on the missions button
-                        const missionsBadge = document.querySelector('app-button-daily-missions .topbar-button-badge');
-                        if (missionsBadge) {
-                            missionsLog('Missions badge detected! Triggering auto-claim...');
-                            setTimeout(autoClaimMissions, 500);
-                        }
+                    // Check for missions button appearing (to attach badge observer)
+                    if (!missionsBadgeObserver &&
+                        (node.matches?.('app-button-daily-missions') ||
+                         node.querySelector?.('app-button-daily-missions'))) {
+                        missionsLog('Missions button appeared, setting up badge observer');
+                        setupMissionsBadgeObserver();
                     }
 
                     // Check for missions dashboard opening - add click listeners to claim buttons
@@ -440,7 +493,7 @@ function setupMissionsObserver() {
         subtree: true
     });
 
-    missionsLog('Observer started - watching for Mission Complete popups, badge, and dashboard');
+    missionsLog('Observer started - watching for Mission Complete popups and dashboard');
 }
 
 // Set up click listeners on claim buttons in the missions dashboard
@@ -477,11 +530,15 @@ function setupClaimButtonListeners() {
 
 function stopMissionsObserver() {
     if (missionsObserver) {
-        missionsLog('stopMissionsObserver: Stopping observer');
+        missionsLog('stopMissionsObserver: Stopping observers');
         missionsObserver.disconnect();
         missionsObserver = null;
-        missionsLog('Observer stopped');
     }
+    if (missionsBadgeObserver) {
+        missionsBadgeObserver.disconnect();
+        missionsBadgeObserver = null;
+    }
+    missionsLog('Observers stopped');
 }
 
 // ============ Toolbar Button ============
