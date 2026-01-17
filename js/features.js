@@ -300,14 +300,31 @@ function removeBetterNowToolbar() {
 let avatarSelectorObserver = null;
 
 function createHideAvatarsButton() {
-    const toolbar = document.getElementById('betternow-toolbar');
-    if (!toolbar) return;
+    featuresLog('createHideAvatarsButton: attempting to create button');
+
+    // Try to get or create the toolbar (handles guests joining the stage)
+    let toolbar = document.getElementById('betternow-toolbar');
+    if (!toolbar) {
+        featuresLog('createHideAvatarsButton: toolbar not found, trying to create');
+        // Try to create toolbar - it will check if we're on a live broadcast
+        toolbar = createBetterNowToolbar();
+    }
+    if (!toolbar) {
+        featuresLog('createHideAvatarsButton: could not get/create toolbar, aborting');
+        return;
+    }
 
     // Don't create if already exists
-    if (document.getElementById('betternow-hide-avatars-toggle')) return;
+    if (document.getElementById('betternow-hide-avatars-toggle')) {
+        featuresLog('createHideAvatarsButton: button already exists');
+        return;
+    }
 
     const leftSection = toolbar.querySelector('.betternow-toolbar__left');
-    if (!leftSection) return;
+    if (!leftSection) {
+        featuresLog('createHideAvatarsButton: left section not found');
+        return;
+    }
 
     let hideAvatarsEnabled = localStorage.getItem('betternow-hide-avatars') === 'true';
     const hideAvatarsToggle = document.createElement('button');
@@ -340,6 +357,7 @@ function createHideAvatarsButton() {
 
     // Insert at the beginning of left section
     leftSection.insertBefore(hideAvatarsToggle, leftSection.firstChild);
+    featuresLog('createHideAvatarsButton: button created successfully');
 }
 
 function removeHideAvatarsButton() {
@@ -354,13 +372,17 @@ function removeHideAvatarsButton() {
 function setupAvatarSelectorObserver() {
     if (avatarSelectorObserver) return;
 
+    featuresLog('setupAvatarSelectorObserver: setting up observer');
+
     avatarSelectorObserver = new MutationObserver((mutations) => {
         const hasAvatarSelector = document.querySelector('app-select-avatar') !== null;
         const hasButton = document.getElementById('betternow-hide-avatars-toggle') !== null;
 
         if (hasAvatarSelector && !hasButton) {
+            featuresLog('setupAvatarSelectorObserver: avatar selector appeared, creating button');
             createHideAvatarsButton();
         } else if (!hasAvatarSelector && hasButton) {
+            featuresLog('setupAvatarSelectorObserver: avatar selector removed, removing button');
             removeHideAvatarsButton();
         }
     });
@@ -372,6 +394,7 @@ function setupAvatarSelectorObserver() {
 
     // Check initial state
     if (document.querySelector('app-select-avatar')) {
+        featuresLog('setupAvatarSelectorObserver: avatar selector already present on init');
         createHideAvatarsButton();
     }
 }
