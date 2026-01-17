@@ -617,6 +617,13 @@ function createChestControls() {
         return;
     }
 
+    // Wait for Firebase settings to load before checking kill switch
+    // This prevents showing the button before we know if it's disabled
+    if (typeof settingsLoaded !== 'undefined' && !settingsLoaded) {
+        chestLog('createChestControls: Settings not loaded yet, waiting');
+        return;
+    }
+
     // Check global kill switch (admins and users with explicit grant bypass)
     const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
     const hasExplicitGrant = typeof grantedFeatures !== 'undefined' && typeof currentUserId !== 'undefined' && grantedFeatures[currentUserId]?.includes('autoChest');
@@ -2273,6 +2280,12 @@ const VIEWER_ENABLED_DEBOUNCE_MS = 1500; // Wait 1.5s for rapid toggles to settl
 
 async function startViewerMonitoring() {
     if (viewerModeActive) return; // Already in viewer mode
+
+    // Wait for Firebase settings to load before checking kill switch
+    if (typeof settingsLoaded !== 'undefined' && !settingsLoaded) {
+        chestLog('startViewerMonitoring: Settings not loaded yet, waiting');
+        return;
+    }
 
     // Check global kill switch (admins and users with explicit grant bypass)
     const isAdmin = typeof ADMIN_USER_IDS !== 'undefined' && typeof currentUserId !== 'undefined' && ADMIN_USER_IDS.includes(currentUserId);
