@@ -582,6 +582,8 @@ function initMissionsIfNotBlocked() {
     // This ensures missions are auto-claimed even when toolbar isn't visible (e.g., explore page)
     if (missionsAutoClaimEnabled) {
         setupMissionsObserver();
+        // Also check for any already-claimable missions on page load
+        setTimeout(autoClaimMissions, 1000);
     }
 }
 
