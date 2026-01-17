@@ -31,6 +31,26 @@ function presenceError(...args) {
     console.error('[BetterNow Presence]', ...args);
 }
 
+// Detect browser platform from user agent
+function detectBrowserPlatform() {
+    const ua = navigator.userAgent;
+    if (ua.includes('Edg/')) return 'Edge';
+    if (ua.includes('OPR/') || ua.includes('Opera')) return 'Opera';
+    if (ua.includes('Firefox/')) return 'Firefox';
+    if (ua.includes('Chrome/')) return 'Chrome';
+    return 'Unknown';
+}
+
+// Safely get extension version (handles invalidated context after extension reload)
+function getExtensionVersion() {
+    try {
+        return chrome.runtime.getManifest().version;
+    } catch (e) {
+        // Extension context invalidated - user needs to refresh the page
+        return 'Unknown';
+    }
+}
+
 // Module loaded log removed for production
 
 let presenceHeartbeatInterval = null;
@@ -179,6 +199,22 @@ async function updatePresence(force = false) {
         }
     }
 
+    // Check if user already has firstSeen (don't overwrite on subsequent updates)
+    let existingFirstSeen = null;
+    try {
+        const existingResponse = await fetch(`${FIRESTORE_BASE_URL}/presence/online`);
+        if (existingResponse.ok) {
+            const existingData = await existingResponse.json();
+            const existingUser = existingData.fields?.[odiskdKey]?.mapValue?.fields;
+            existingFirstSeen = existingUser?.firstSeen?.integerValue;
+            presenceLog('updatePresence: Existing firstSeen:', existingFirstSeen);
+        }
+    } catch (e) {
+        presenceLog('updatePresence: Could not check existing firstSeen:', e.message);
+    }
+
+    const firstSeen = existingFirstSeen ? parseInt(existingFirstSeen) : now;
+
     // Build presence data
     const presenceData = {
         odiskd: currentUserId,
@@ -188,7 +224,11 @@ async function updatePresence(force = false) {
         streamUrl: streamInfo.url,
         isGuesting: streamInfo.isGuesting,
         lastSeen: now,
-        lastStreamTime: lastStreamTime
+        lastStreamTime: lastStreamTime,
+        // New tracking fields
+        firstSeen: firstSeen,
+        version: getExtensionVersion(),
+        platform: detectBrowserPlatform()
     };
 
     presenceLog('updatePresence: Sending data:', presenceData);
@@ -218,7 +258,10 @@ async function updatePresence(force = false) {
                                     streamUrl: { stringValue: presenceData.streamUrl || '' },
                                     isGuesting: { booleanValue: presenceData.isGuesting || false },
                                     lastSeen: { integerValue: presenceData.lastSeen },
-                                    lastStreamTime: { integerValue: presenceData.lastStreamTime }
+                                    lastStreamTime: { integerValue: presenceData.lastStreamTime },
+                                    firstSeen: { integerValue: presenceData.firstSeen },
+                                    version: { stringValue: presenceData.version },
+                                    platform: { stringValue: presenceData.platform }
                                 }
                             }
                         }
@@ -339,7 +382,10 @@ async function fetchOnlineUsers() {
                             streamUrl: fields.streamUrl?.stringValue || null,
                             isGuesting: fields.isGuesting?.booleanValue || false,
                             lastSeen: lastSeen,
-                            lastStreamTime: parseInt(fields.lastStreamTime?.integerValue) || lastSeen
+                            lastStreamTime: parseInt(fields.lastStreamTime?.integerValue) || lastSeen,
+                            firstSeen: parseInt(fields.firstSeen?.integerValue) || lastSeen,
+                            version: fields.version?.stringValue || 'Unknown',
+                            platform: fields.platform?.stringValue || 'Unknown'
                         });
                         presenceLog(`fetchOnlineUsers: User ${fields.username?.stringValue || odiskd} is ONLINE`);
                     } else {
