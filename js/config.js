@@ -32,9 +32,9 @@ let hiddenUsers = {};
 // Format: { "hiddenUserId": { "exceptionUserId": { username: "Name", avatar: "https://..." }, ... } }
 let hiddenExceptions = {};
 
-// Friend settings - individual styles per friend (keyed by odiskd)
+// User settings - individual styles per BetterNow user (keyed by odiskd)
 // Format: { "userId": { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00" } }
-let friendSettings = {};
+let userSettings = {};
 
 // My own settings (admin's personal styling)
 // Format: { borderEnabled: true, borderColor1: "#ff0000", borderColor2: "#0000ff", textColor: "#ffffff", levelEnabled: true, levelColor1: "#00ff00", levelColor2: "#00ff00", frameEnabled: true, frameUrl: "https://..." }
