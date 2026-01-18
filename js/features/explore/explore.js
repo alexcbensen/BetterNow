@@ -110,6 +110,7 @@ function waitForBlockedCheckThenInitExplore() {
             injectWebSocketBlocker();
             preBlockHiddenUsers();
             injectCarouselHideStyles();
+            initExplorePageHiding();
             return;
         }
 
@@ -120,6 +121,7 @@ function waitForBlockedCheckThenInitExplore() {
                 injectWebSocketBlocker();
                 preBlockHiddenUsers();
                 injectCarouselHideStyles();
+                initExplorePageHiding();
             }
         }
     }, 100);
@@ -808,17 +810,112 @@ function hideBroadcasters() {
             });
         }
 
-        // Hide streams where hidden user is guesting (by their avatar URL containing userId)
+        // Hide by broadcaster's main avatar URL (most reliable method)
+        // This catches the broadcaster's own stream tile
+        document.querySelectorAll(`app-trending-user img.avatar[src*="/${odiskd}/"]`).forEach(img => {
+            const card = img.closest('app-trending-user');
+            if (card) {
+                const li = card.closest('li');
+                if (li && !li.closest('app-broadcasts-carousel')) {
+                    li.style.display = 'none';
+                    exploreLog('Hid broadcaster tile by avatar:', odiskd);
+                }
+            }
+        });
+
+        // Hide streams where hidden user is guesting (by their avatar in guests section)
         document.querySelectorAll(`app-trending-user-guests img.avatar[src*="/${odiskd}/"]`).forEach(img => {
             const card = img.closest('app-trending-user');
             if (card) {
                 const li = card.closest('li');
                 if (li && !li.closest('app-broadcasts-carousel')) {
                     li.style.display = 'none';
+                    exploreLog('Hid broadcaster tile (guesting):', odiskd);
                 }
             }
         });
     });
+}
+
+// Throttle helper for explore page observer
+let exploreHideTimeout = null;
+const EXPLORE_HIDE_THROTTLE_MS = 200;
+
+function throttledHideBroadcasters() {
+    if (exploreHideTimeout) return;
+
+    exploreHideTimeout = setTimeout(() => {
+        exploreHideTimeout = null;
+        hideBroadcasters();
+        hideNotifications();
+    }, EXPLORE_HIDE_THROTTLE_MS);
+}
+
+// Observer for explore page content (catches "Show More" loads and dynamic updates)
+let explorePageObserver = null;
+
+function setupExplorePageObserver() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
+    if (explorePageObserver) return; // Already set up
+
+    // Watch the main content area for changes
+    const mainContent = document.querySelector('app-root') || document.body;
+
+    explorePageObserver = new MutationObserver((mutations) => {
+        // Check if extension is disabled
+        if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
+        // Check if any mutations added nodes that could be broadcaster tiles
+        let hasRelevantChanges = false;
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check if this is or contains a trending user tile
+                        if (node.matches?.('app-trending-user, li') ||
+                            node.querySelector?.('app-trending-user')) {
+                            hasRelevantChanges = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (hasRelevantChanges) break;
+        }
+
+        if (hasRelevantChanges) {
+            throttledHideBroadcasters();
+        }
+    });
+
+    explorePageObserver.observe(mainContent, {
+        childList: true,
+        subtree: true
+    });
+
+    exploreLog('Explore page observer set up');
+}
+
+// Initialize hiding for explore page category sections
+function initExplorePageHiding() {
+    // Check if extension is disabled for blocked users
+    if (typeof extensionDisabled !== 'undefined' && extensionDisabled) return;
+
+    // Wait for hiddenUserIds to be loaded
+    if (typeof hiddenUserIds === 'undefined' || hiddenUserIds.length === 0) {
+        // Retry after a short delay
+        setTimeout(initExplorePageHiding, 200);
+        return;
+    }
+
+    // Initial hide pass
+    hideBroadcasters();
+    hideNotifications();
+
+    // Set up observer for dynamic content
+    setupExplorePageObserver();
 }
 
 function setupCarouselDirectionTracking() {
