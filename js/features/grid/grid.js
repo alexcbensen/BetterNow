@@ -117,6 +117,14 @@ function applyGridView() {
     }
 }
 
+function checkPortraitVideo(video) {
+    if (video.videoWidth && video.videoHeight) {
+        const isPortrait = video.videoHeight > video.videoWidth;
+        video.classList.toggle('is-portrait', isPortrait);
+        gridLog('Portrait check:', video.videoWidth, 'x', video.videoHeight, '→', isPortrait ? 'portrait' : 'landscape');
+    }
+}
+
 function fixVideoFit() {
     const isGridView = document.body.classList.contains('betternow-grid-active');
     const allVideos = document.querySelectorAll('.video-player video');
@@ -129,8 +137,21 @@ function fixVideoFit() {
             // Screenshare: show full content
             video.style.objectFit = 'contain';
         } else {
-            // Regular video: fill the frame (may crop edges)
-            video.style.objectFit = 'cover';
+            // Detect portrait (mobile) streams and use contain to avoid extreme zoom
+            checkPortraitVideo(video);
+            if (video.classList.contains('is-portrait')) {
+                video.style.objectFit = 'contain';
+            } else {
+                // Landscape video: fill the frame (may crop edges)
+                video.style.objectFit = 'cover';
+            }
+
+            // Re-check when video dimensions become available or change
+            if (!video._betternowPortraitListener) {
+                video.addEventListener('loadedmetadata', () => checkPortraitVideo(video));
+                video.addEventListener('resize', () => checkPortraitVideo(video));
+                video._betternowPortraitListener = true;
+            }
         }
 
         // Clear any custom aspect ratio
