@@ -64,6 +64,9 @@ let heartbeatPaused = false; // Track if heartbeat is paused (1hr+ idle)
 let cachedUsername = null;
 let cachedUsernameForId = null;
 
+// Cache firstSeen to avoid reading the entire presence document every heartbeat
+let cachedFirstSeen = null;
+
 // Get current stream info from URL
 function getCurrentStreamInfo() {
     const path = window.location.pathname;
@@ -211,21 +214,29 @@ async function updatePresence(force = false) {
         }
     }
 
-    // Check if user already has firstSeen (don't overwrite on subsequent updates)
-    let existingFirstSeen = null;
-    try {
-        const existingResponse = await fetch(`${FIRESTORE_BASE_URL}/presence/online`);
-        if (existingResponse.ok) {
-            const existingData = await existingResponse.json();
-            const existingUser = existingData.fields?.[odiskdKey]?.mapValue?.fields;
-            existingFirstSeen = existingUser?.firstSeen?.integerValue;
-            presenceLog('updatePresence: Existing firstSeen:', existingFirstSeen);
+    // Use cached firstSeen to avoid reading the entire presence document every heartbeat
+    if (!cachedFirstSeen) {
+        // Only fetch on first heartbeat of this session
+        try {
+            const existingResponse = await fetch(`${FIRESTORE_BASE_URL}/presence/online`);
+            if (existingResponse.ok) {
+                const existingData = await existingResponse.json();
+                const existingUser = existingData.fields?.[odiskdKey]?.mapValue?.fields;
+                if (existingUser?.firstSeen?.integerValue) {
+                    cachedFirstSeen = parseInt(existingUser.firstSeen.integerValue);
+                    presenceLog('updatePresence: Loaded firstSeen from Firestore:', cachedFirstSeen);
+                }
+            }
+        } catch (e) {
+            presenceLog('updatePresence: Could not check existing firstSeen:', e.message);
         }
-    } catch (e) {
-        presenceLog('updatePresence: Could not check existing firstSeen:', e.message);
+        if (!cachedFirstSeen) {
+            cachedFirstSeen = now;
+            presenceLog('updatePresence: New user, setting firstSeen to now');
+        }
     }
 
-    const firstSeen = existingFirstSeen ? parseInt(existingFirstSeen) : now;
+    const firstSeen = cachedFirstSeen;
 
     // Build presence data
     const presenceData = {
