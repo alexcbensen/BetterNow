@@ -82,9 +82,14 @@ app-channel .header {
     height: 100% !important;
 }
 
-/* Force cover for regular videos in grid view */
-.betternow-grid-active app-channel .fullscreen-wrapper > .video video:not(.is-screenshare) {
+/* Force cover for regular landscape videos in grid view */
+.betternow-grid-active app-channel .fullscreen-wrapper > .video video:not(.is-screenshare):not(.is-portrait) {
     object-fit: cover !important;
+}
+
+/* Portrait (mobile) videos use contain to avoid extreme zoom-in */
+.betternow-grid-active app-channel .fullscreen-wrapper > .video video.is-portrait {
+    object-fit: contain !important;
 }
 
 /* Screenshare videos use contain to show full content */

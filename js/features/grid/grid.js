@@ -126,27 +126,15 @@ function checkPortraitVideo(video) {
 }
 
 function fixVideoFit() {
-    const isGridView = document.body.classList.contains('betternow-grid-active');
     const allVideos = document.querySelectorAll('.video-player video');
-    gridLog('fixVideoFit - isGridView:', isGridView, 'videoCount:', allVideos.length);
+    gridLog('fixVideoFit - videoCount:', allVideos.length);
 
     allVideos.forEach(video => {
-        const videoTile = video.closest('.video');
-
-        if (video.classList.contains('is-screenshare')) {
-            // Screenshare: show full content
-            video.style.objectFit = 'contain';
-        } else {
-            // Detect portrait (mobile) streams and use contain to avoid extreme zoom
+        // Detect portrait (mobile) streams -- CSS handles object-fit via classes
+        if (!video.classList.contains('is-screenshare')) {
             checkPortraitVideo(video);
-            if (video.classList.contains('is-portrait')) {
-                video.style.objectFit = 'contain';
-            } else {
-                // Landscape video: fill the frame (may crop edges)
-                video.style.objectFit = 'cover';
-            }
 
-            // Re-check when video dimensions become available or change
+            // Listen for dimension changes (initial load + mid-stream orientation switch)
             if (!video._betternowPortraitListener) {
                 video.addEventListener('loadedmetadata', () => checkPortraitVideo(video));
                 video.addEventListener('resize', () => checkPortraitVideo(video));
@@ -155,6 +143,7 @@ function fixVideoFit() {
         }
 
         // Clear any custom aspect ratio
+        const videoTile = video.closest('.video');
         if (videoTile) {
             videoTile.style.aspectRatio = '';
         }
